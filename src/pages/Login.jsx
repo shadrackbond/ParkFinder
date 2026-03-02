@@ -1,37 +1,47 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Car, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Car, Mail, Lock, AlertCircle, User, Building2, UserCircle } from 'lucide-react';
 
 export default function Login() {
+  const [activeTab, setActiveTab] = useState('customer');
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const { signup, login } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
-    
+
     if (isSignUp && password !== confirmPassword) {
       return setError('Passwords do not match');
+    }
+    if (isSignUp && !displayName.trim()) {
+      return setError('Please enter a username');
     }
 
     try {
       setError('');
       setLoading(true);
-      
+
+      if (activeTab === 'provider' && isSignUp) {
+        navigate('/provider/register', { state: { email, password, displayName } });
+        return;
+      }
+
       if (isSignUp) {
-        await signup(email, password);
+        await signup(email, password, displayName);
+        navigate('/');
       } else {
         await login(email, password);
+        navigate('/');
       }
-      
-      navigate('/');
     } catch (err) {
       setError(err.message.replace('Firebase: ', '').replace(/\(auth.*\)/, ''));
     } finally {
@@ -40,80 +50,122 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary to-secondary flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-teal-50 to-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo Section */}
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4">
-            <Car className="w-10 h-10 text-primary" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-600 rounded-2xl shadow-lg shadow-teal-600/20 mb-4">
+            <Car className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">ParkEase Kenya</h1>
-          <p className="text-blue-100">Find and reserve parking before you arrive</p>
+          <h1 className="text-2xl font-bold text-gray-900">ParkEase Kenya</h1>
+          <p className="text-gray-500 text-sm mt-1">Find and reserve parking before you arrive</p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
+        {/* Role Tab Toggle */}
+        <div className="flex bg-gray-100 rounded-xl p-1 mb-6 gap-1">
+          <button
+            onClick={() => { setActiveTab('customer'); setError(''); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'customer'
+              ? 'bg-white text-teal-700 shadow-card'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
+          >
+            <User className="w-4 h-4" />
+            Customer
+          </button>
+          <button
+            onClick={() => { setActiveTab('provider'); setError(''); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'provider'
+              ? 'bg-white text-teal-700 shadow-card'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
+          >
+            <Building2 className="w-4 h-4" />
+            Provider
+          </button>
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl shadow-card p-6 border border-gray-100">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">
             {isSignUp ? 'Create Account' : 'Welcome Back'}
           </h2>
+          <p className="text-gray-500 text-sm mb-5">
+            {activeTab === 'provider'
+              ? isSignUp ? 'Register as a parking provider' : 'Sign in to your provider dashboard'
+              : isSignUp ? 'Sign up to start booking parking' : 'Sign in to find parking near you'
+            }
+          </p>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <span className="text-sm">{error}</span>
+            <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl mb-4 flex items-start gap-2 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email Input */}
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            {/* Full Name (Sign Up Only) */}
+            {isSignUp && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+                <div className="relative">
+                  <UserCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-900 placeholder-gray-400"
+                    placeholder="e.g. johndoe"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-900 placeholder-gray-400"
                   placeholder="you@example.com"
                   required
                 />
               </div>
             </div>
 
-            {/* Password Input */}
+            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-900 placeholder-gray-400"
                   placeholder="••••••••"
                   required
                 />
               </div>
             </div>
 
-            {/* Confirm Password (Sign Up Only) */}
+            {/* Confirm Password */}
             {isSignUp && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm Password
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-900 placeholder-gray-400"
                     placeholder="••••••••"
                     required
                   />
@@ -121,35 +173,36 @@ export default function Login() {
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-blue-600 text-white font-semibold py-3 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
-              {loading ? 'Please wait...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+              {loading
+                ? 'Please wait...'
+                : isSignUp
+                  ? (activeTab === 'provider' ? 'Continue to Registration →' : 'Create Account')
+                  : 'Sign In'
+              }
             </button>
           </form>
 
-          {/* Toggle Sign Up/Login */}
-          <div className="mt-6 text-center">
+          {/* Toggle */}
+          <div className="mt-5 text-center">
             <button
               type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-              }}
-              className="text-primary hover:text-blue-700 font-medium text-sm"
+              onClick={() => { setIsSignUp(!isSignUp); setError(''); }}
+              className="text-teal-600 hover:text-teal-700 font-medium text-sm transition"
             >
-              {isSignUp 
-                ? 'Already have an account? Sign In' 
+              {isSignUp
+                ? 'Already have an account? Sign In'
                 : "Don't have an account? Sign Up"}
             </button>
           </div>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-blue-100 text-sm mt-6">
+        <p className="text-center text-gray-400 text-xs mt-6">
           By continuing, you agree to our Terms & Privacy Policy
         </p>
       </div>

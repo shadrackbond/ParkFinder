@@ -1,14 +1,33 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import RoleRoute from './components/common/RoleRoute';
+
 import Login from './pages/Login';
+import ProviderRegister from './pages/ProviderRegister';
 import Home from './pages/Home';
 import Bookings from './pages/Bookings';
-import Wallet from './pages/Wallet';
+import History from './pages/Wallet';
 import Profile from './pages/Profile';
+
+import ProviderDashboard from './pages/provider/ProviderDashboard';
+import LotManager from './pages/provider/LotManager';
+import QRScanner from './pages/provider/QRScanner';
+
+import AdminDashboard from './pages/admin/AdminDashboard';
+import ApprovalQueue from './pages/admin/ApprovalQueue';
+import UserManager from './pages/admin/UserManager';
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth();
   return currentUser ? children : <Navigate to="/login" />;
+}
+
+function SmartRedirect() {
+  const { currentUser, userRole } = useAuth();
+  if (!currentUser) return <Navigate to="/login" />;
+  if (userRole === 'admin') return <Navigate to="/admin" />;
+  if (userRole === 'provider') return <Navigate to="/provider" />;
+  return <Home />;
 }
 
 function App() {
@@ -18,38 +37,22 @@ function App() {
         <div className="min-h-screen bg-gray-50">
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route 
-              path="/" 
-              element={
-                <PrivateRoute>
-                  <Home />
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/bookings" 
-              element={
-                <PrivateRoute>
-                  <Bookings />
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/wallet" 
-              element={
-                <PrivateRoute>
-                  <Wallet />
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/profile" 
-              element={
-                <PrivateRoute>
-                  <Profile />
-                </PrivateRoute>
-              } 
-            />
+            <Route path="/provider/register" element={<ProviderRegister />} />
+
+            <Route path="/" element={<PrivateRoute><SmartRedirect /></PrivateRoute>} />
+            <Route path="/bookings" element={<PrivateRoute><Bookings /></PrivateRoute>} />
+            <Route path="/history" element={<PrivateRoute><History /></PrivateRoute>} />
+            <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+
+            <Route path="/provider" element={<RoleRoute allowedRoles={['provider']}><ProviderDashboard /></RoleRoute>} />
+            <Route path="/provider/lots" element={<RoleRoute allowedRoles={['provider']}><LotManager /></RoleRoute>} />
+            <Route path="/provider/scanner" element={<RoleRoute allowedRoles={['provider']}><QRScanner /></RoleRoute>} />
+
+            <Route path="/admin" element={<RoleRoute allowedRoles={['admin']}><AdminDashboard /></RoleRoute>} />
+            <Route path="/admin/approvals" element={<RoleRoute allowedRoles={['admin']}><ApprovalQueue /></RoleRoute>} />
+            <Route path="/admin/users" element={<RoleRoute allowedRoles={['admin']}><UserManager /></RoleRoute>} />
+
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
       </Router>

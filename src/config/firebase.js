@@ -4,6 +4,9 @@ import { initializeApp } from "firebase/app";
 // Import Firebase Authentication service
 import { getAuth } from "firebase/auth";
 
+// Import Firestore database service
+import { getFirestore } from "firebase/firestore";
+
 // Firebase configuration object
 // These values are loaded from environment variables (Vite project setup)
 // This keeps sensitive keys out of your source code
@@ -24,5 +27,9 @@ const app = initializeApp(firebaseConfig);
 // This will be used for login, signup, logout, etc.
 export const auth = getAuth(app);
 
+// Initialize Firestore database
+export const db = getFirestore(app);
+
 // Export the Firebase app instance so it can be used in other files
 export default app;
+

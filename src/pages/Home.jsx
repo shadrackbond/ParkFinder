@@ -1,162 +1,158 @@
-import { Bell, Search, MapPin, Heart, Clock, Navigation, Map, Wallet as WalletIcon, User } from 'lucide-react';
+import { Bell, Search, MapPin, Heart, Clock, Navigation, Star, ChevronRight, ParkingCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
+import useParkingLots from '../hooks/useParkingLots';
 
 export default function Home() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
+  const { lots, loading } = useParkingLots();
 
-  // Hardcoded data for demonstration
-  const popularSpots = [
-    {
-      id: 1,
-      name: 'Westlands Mall',
-      location: 'Westlands, Nairobi',
-      price: 100,
-      rating: 4.8,
-      available: 24,
-      image: 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=400&q=80'
-    },
-    {
-      id: 2,
-      name: 'Sarit Centre',
-      location: 'Parklands, Nairobi',
-      price: 150,
-      rating: 4.6,
-      available: 12,
-      image: 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=400&q=80'
-    },
-    {
-      id: 3,
-      name: 'Garden City Mall',
-      location: 'Thika Road, Nairobi',
-      price: 120,
-      rating: 4.7,
-      available: 8,
-      image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80'
-    }
-  ];
+  const displayName = userProfile?.displayName
+    || currentUser?.displayName
+    || 'there';
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-safe page-enter">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-secondary px-6 pt-12 pb-8 rounded-b-3xl shadow-lg">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100">
+        <div className="flex items-center justify-between mb-5">
           <div>
-            <p className="text-blue-100 text-sm">Welcome back,</p>
-            <h1 className="text-white text-2xl font-bold">
-              {currentUser?.email?.split('@')[0] || 'User'}
-            </h1>
+            <p className="text-gray-400 text-xs font-medium">Welcome back,</p>
+            <h1 className="text-gray-900 text-xl font-bold">{displayName}</h1>
           </div>
-          <button className="relative bg-white/20 backdrop-blur-sm p-3 rounded-full">
-            <Bell className="w-6 h-6 text-white" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full"></span>
+          <button className="relative bg-gray-50 p-2.5 rounded-full border border-gray-100 hover:bg-gray-100 transition">
+            <Bell className="w-5 h-5 text-gray-600" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
           </button>
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white rounded-2xl shadow-lg p-4 flex items-center gap-3">
-          <Search className="w-5 h-5 text-gray-400" />
+        <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100">
+          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <input
             type="text"
             placeholder="Search location or parking..."
-            className="flex-1 outline-none text-gray-700"
+            className="flex-1 outline-none text-gray-700 bg-transparent text-sm placeholder-gray-400"
           />
-          <MapPin className="w-5 h-5 text-primary" />
+          <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <MapPin className="w-4 h-4 text-white" />
+          </div>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="px-6 mt-6">
-        <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <button className="bg-white rounded-2xl p-4 shadow-md hover:shadow-lg transition text-center">
-            <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2">
-              <Navigation className="w-6 h-6 text-primary" />
-            </div>
-            <p className="text-sm font-semibold text-gray-700">Nearby</p>
-          </button>
-          
-          <button className="bg-white rounded-2xl p-4 shadow-md hover:shadow-lg transition text-center">
-            <div className="bg-pink-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2">
-              <Heart className="w-6 h-6 text-pink-500" />
-            </div>
-            <p className="text-sm font-semibold text-gray-700">Favorites</p>
-          </button>
-          
-          <button className="bg-white rounded-2xl p-4 shadow-md hover:shadow-lg transition text-center">
-            <div className="bg-amber-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2">
-              <Clock className="w-6 h-6 text-amber-500" />
-            </div>
-            <p className="text-sm font-semibold text-gray-700">Recent</p>
-          </button>
-        </div>
-      </div>
-
-      {/* Popular Parking Spots */}
-      <div className="px-6 mt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800">Popular Spots</h2>
-          <button className="text-primary text-sm font-semibold">See All</button>
-        </div>
-
-        <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
-          {popularSpots.map((spot) => (
-            <div 
-              key={spot.id} 
-              className="flex-shrink-0 w-72 bg-white rounded-2xl shadow-lg overflow-hidden"
-            >
-              <div className="relative h-40">
-                <img 
-                  src={spot.image} 
-                  alt={spot.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
-                  <p className="text-sm font-bold text-gray-800">
-                    KSh {spot.price}<span className="text-xs text-gray-600">/hr</span>
-                  </p>
-                </div>
+      <div className="px-5 mt-5">
+        <h2 className="text-sm font-bold text-gray-900 mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-3 gap-2.5">
+          {[
+            { icon: Navigation, label: 'Nearby', color: 'bg-teal-50 text-teal-600' },
+            { icon: Heart, label: 'Favorites', color: 'bg-rose-50 text-rose-500' },
+            { icon: Clock, label: 'Recent', color: 'bg-indigo-50 text-indigo-500' },
+          ].map(({ icon: Icon, label, color }) => (
+            <button key={label} className="bg-white rounded-xl p-3.5 border border-gray-100 hover:shadow-card transition group">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2 ${color}`}>
+                <Icon className="w-5 h-5" />
               </div>
-              
-              <div className="p-4">
-                <h3 className="font-bold text-gray-800 mb-1">{spot.name}</h3>
-                <p className="text-sm text-gray-500 flex items-center gap-1 mb-3">
-                  <MapPin className="w-4 h-4" />
-                  {spot.location}
-                </p>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-amber-500 font-semibold">★ {spot.rating}</span>
-                    <span className="text-green-600 font-semibold">
-                      {spot.available} slots
-                    </span>
-                  </div>
-                  
-                  <button className="bg-primary hover:bg-blue-600 text-white px-6 py-2 rounded-xl font-semibold transition shadow-md">
-                    Book
-                  </button>
-                </div>
-              </div>
-            </div>
+              <p className="text-xs font-semibold text-gray-700">{label}</p>
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Promotional Banner */}
-      <div className="px-6 mt-8">
-        <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl p-6 shadow-lg">
-          <h3 className="text-white font-bold text-lg mb-2">First Time Bonus!</h3>
-          <p className="text-white/90 text-sm mb-4">
-            Get 20% off your first booking. Use code: PARK20
-          </p>
-          <button className="bg-white text-orange-600 px-6 py-2 rounded-xl font-semibold hover:shadow-lg transition">
-            Claim Offer
-          </button>
+      {/* Available Parking Spots */}
+      <div className="px-5 mt-6 max-w-lg">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-gray-900">Available Parking</h2>
         </div>
+
+        {loading ? (
+          <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 animate-pulse">
+            <div className="h-48 bg-gray-100" />
+            <div className="p-4 space-y-2">
+              <div className="h-4 bg-gray-100 rounded w-3/4" />
+              <div className="h-3 bg-gray-100 rounded w-1/2" />
+            </div>
+          </div>
+        ) : lots.length === 0 ? (
+          <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <ParkingCircle className="w-6 h-6 text-gray-400" />
+            </div>
+            <p className="text-gray-600 font-medium text-sm">No parking spots available yet</p>
+            <p className="text-gray-400 text-xs mt-1">New providers will appear here once approved</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {lots.map((spot) => {
+              const images = spot.lotImages || (spot.imageUrl ? [spot.imageUrl] : []);
+
+              return (
+                <div key={spot.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  {/* Image grid — same layout as provider My Lot page */}
+                  {images.length === 0 && (
+                    <div className="h-28 bg-gray-50 flex items-center justify-center">
+                      <ParkingCircle className="w-10 h-10 text-gray-300" />
+                    </div>
+                  )}
+                  {images.length === 1 && (
+                    <div className="h-48 overflow-hidden">
+                      <img src={images[0]} alt={spot.name} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  {images.length === 2 && (
+                    <div className="grid grid-cols-2 gap-0.5 h-48 overflow-hidden">
+                      {images.map((img, i) => (
+                        <img key={i} src={img} alt="" className="w-full h-full object-cover" />
+                      ))}
+                    </div>
+                  )}
+                  {images.length === 3 && (
+                    <div className="grid grid-cols-2 gap-0.5 h-48 overflow-hidden">
+                      <img src={images[0]} alt="" className="w-full h-full object-cover row-span-2" />
+                      <div className="grid grid-rows-2 gap-0.5">
+                        <img src={images[1]} alt="" className="w-full h-full object-cover" />
+                        <img src={images[2]} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  )}
+                  {images.length >= 4 && (
+                    <div className="grid grid-cols-2 grid-rows-2 gap-0.5 h-56 overflow-hidden">
+                      {images.slice(0, 4).map((img, i) => (
+                        <img key={i} src={img} alt="" className="w-full h-full object-cover" />
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-bold text-gray-900 text-sm">{spot.name}</h3>
+                      <span className="bg-teal-50 text-teal-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                        KSh {spot.hourlyRate}/hr
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 flex items-center gap-1 mb-3">
+                      <MapPin className="w-3 h-3" /> {spot.address}
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-amber-500 font-semibold flex items-center gap-0.5">
+                          <Star className="w-3 h-3 fill-amber-400 stroke-amber-400" /> {spot.rating}
+                        </span>
+                        <span className="text-emerald-600 font-semibold">{spot.availableSpots} slots</span>
+                      </div>
+                      <button className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-semibold transition text-xs">
+                        Book
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Bottom Navigation */}
       <BottomNav />
     </div>
   );

@@ -40,7 +40,7 @@ export default function useParkingLots(filters = {}) {
         }
 
         loadLots();
-    }, [filters.lat, filters.lng, filters.radius]);
+    }, [filters.lat, filters.lng, filters.radius, setLots]);
 
     return { lots, loading, error };
 }

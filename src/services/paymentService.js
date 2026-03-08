@@ -27,7 +27,7 @@
  * // 3. Set up M-Pesa callback URL in Cloud Functions
  * //    to receive payment confirmations.
  */
-export async function processMpesaPayment(paymentData) {
+export async function processMpesaPayment() {
     console.warn('processMpesaPayment() is a placeholder — implement via Cloud Function');
     return {
         checkoutRequestId: `sim_${Date.now()}`,
@@ -46,7 +46,7 @@ export async function processMpesaPayment(paymentData) {
  * // 1. Query Cloud Function 'checkPaymentStatus'.
  * // 2. Function should query M-Pesa Transaction Status API.
  */
-export async function checkPaymentStatus(checkoutRequestId) {
+export async function checkPaymentStatus() {
     console.warn('checkPaymentStatus() is a placeholder');
     return { status: 'success' };
 }
@@ -61,7 +61,7 @@ export async function checkPaymentStatus(checkoutRequestId) {
  * // 1. Read from Firestore: doc(db, 'wallets', userId)
  * // 2. If no wallet doc exists, return { balance: 0 }.
  */
-export async function getWalletBalance(userId) {
+export async function getWalletBalance() {
     console.warn('getWalletBalance() is a placeholder');
     return { balance: 2500, currency: 'KES' };
 }
@@ -76,7 +76,7 @@ export async function getWalletBalance(userId) {
  * // 1. Query Firestore: collection('transactions').where('userId', '==', userId)
  * // 2. Order by timestamp descending.
  */
-export async function getTransactionHistory(userId) {
+export async function getTransactionHistory() {
     console.warn('getTransactionHistory() is a placeholder');
     return [
         { id: 'tx_001', type: 'payment', amount: -200, description: 'Westlands Mall - 2hrs', date: new Date() },

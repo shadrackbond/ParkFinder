@@ -10,7 +10,7 @@
  * // should use httpsCallable.
  */
 
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { updateProviderStatus } from './userService';
 
@@ -87,7 +87,7 @@ export async function approveProvider(providerId) {
  * // 2. Send rejection notification with reason to provider.
  * // 3. Log admin action to audit trail.
  */
-export async function rejectProvider(providerId, reason = '') {
+export async function rejectProvider(providerId) {
     return updateProviderStatus(providerId, 'rejected');
 }
 
@@ -143,7 +143,7 @@ export async function getPlatformStats() {
             bookingsSnap.docs.forEach((d) => {
                 revenue += d.data().totalPrice || 0;
             });
-        } catch (e) { /* bookings collection may not exist yet */ }
+        } catch { /* bookings collection may not exist yet */ }
 
         return {
             totalUsers: users.length,

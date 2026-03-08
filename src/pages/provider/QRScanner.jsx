@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import ProviderNav from '../../components/provider/ProviderNav';
 import { validateQR } from '../../services/qrService';
 import { Camera, CheckCircle2, XCircle, QrCode, RefreshCw } from 'lucide-react';

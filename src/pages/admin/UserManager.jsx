@@ -10,6 +10,7 @@ export default function UserManager() {
     const [roleFilter, setRoleFilter] = useState(null);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLoading(true);
         getAllUsers(roleFilter).then((d) => { setUsers(d); setLoading(false); });
     }, [roleFilter]);

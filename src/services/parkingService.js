@@ -10,8 +10,10 @@ import { db } from '../config/firebase';
 /**
  * Fetch all approved providers as parking spots for the Home page.
  * Each active provider with business info = a parking listing.
+ *
+ * Note: lat/lng/radiusKm are reserved for future geo-filtering.
  */
-export async function fetchNearbyLots(lat = -1.2921, lng = 36.8219, radiusKm = 5) {
+export async function fetchNearbyLots() {
     try {
         const q = query(
             collection(db, 'users'),

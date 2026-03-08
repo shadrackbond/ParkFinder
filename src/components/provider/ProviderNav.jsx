@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function ProviderNav() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { logout, userProfile } = useAuth();
+    const { logout } = useAuth();
 
     const navItems = [
         { name: 'Dashboard', icon: LayoutDashboard, path: '/provider' },

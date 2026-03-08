@@ -17,13 +17,17 @@ function loadGoogleMapsPlaces(apiKey) {
 
 		const existing = document.getElementById(PLACES_SCRIPT_ID);
 		if (existing) {
-			existing.addEventListener('load', () => resolve());
+			if (window.google?.maps?.places) {
+				resolve();
+			} else {
+				existing.addEventListener('load', () => resolve());
+			}
 			return;
 		}
 
 		const script = document.createElement('script');
 		script.id = PLACES_SCRIPT_ID;
-		script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+		script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
 		script.async = true;
 		script.defer = true;
 		script.onload = () => resolve();

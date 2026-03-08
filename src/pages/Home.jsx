@@ -180,7 +180,7 @@ export default function Home() {
       </div>
 
       {/* Available Parking Spots */}
-      <div className="px-5 mt-6 max-w-lg">
+      <div className="px-5 mt-6 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900">
             {selectedDestination && webParking.length > 0
@@ -210,7 +210,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {effectiveLots.map((spot) => {
               const images = spot.lotImages || (spot.imageUrl ? [spot.imageUrl] : []);
 

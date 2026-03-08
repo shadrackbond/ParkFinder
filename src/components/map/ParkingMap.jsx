@@ -18,17 +18,22 @@ export default function ParkingMap({ lots = [], onSelectLot, userLocation, desti
         if (!apiKey) return;
 
         if (!window.google || !window.google.maps) {
-            const scriptId = 'google-maps-script';
-            if (!document.getElementById(scriptId)) {
+            const scriptId = 'google-maps-places-script';
+            const existing = document.getElementById(scriptId);
+            if (!existing) {
                 const script = document.createElement('script');
                 script.id = scriptId;
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
                 script.async = true;
                 script.defer = true;
                 script.onload = () => initMap();
                 document.body.appendChild(script);
             } else {
-                document.getElementById(scriptId).onload = () => initMap();
+                if (window.google && window.google.maps) {
+                    initMap();
+                } else {
+                    existing.addEventListener('load', () => initMap());
+                }
             }
         } else {
             initMap();

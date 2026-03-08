@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Car, Mail, Lock, AlertCircle, User, Building2, UserCircle } from 'lucide-react';
 
@@ -15,6 +15,22 @@ export default function Login() {
 
   const { signup, login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname === '/provider/login') {
+      setActiveTab('provider');
+    } else {
+      setActiveTab('customer');
+    }
+    setError('');
+  }, [location.pathname]);
+
+  const handleTabChange = (role) => {
+    setActiveTab(role);
+    setError('');
+    navigate(role === 'provider' ? '/provider/login' : '/customer/login', { replace: true });
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -37,10 +53,10 @@ export default function Login() {
 
       if (isSignUp) {
         await signup(email, password, displayName);
-        navigate('/');
+        navigate('/app');
       } else {
         await login(email, password);
-        navigate('/');
+        navigate('/app');
       }
     } catch (err) {
       setError(err.message.replace('Firebase: ', '').replace(/\(auth.*\)/, ''));
@@ -64,7 +80,7 @@ export default function Login() {
         {/* Role Tab Toggle */}
         <div className="flex bg-gray-100 rounded-xl p-1 mb-6 gap-1">
           <button
-            onClick={() => { setActiveTab('customer'); setError(''); }}
+            onClick={() => handleTabChange('customer')}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'customer'
               ? 'bg-white text-teal-700 shadow-card'
               : 'text-gray-500 hover:text-gray-700'
@@ -74,7 +90,7 @@ export default function Login() {
             Customer
           </button>
           <button
-            onClick={() => { setActiveTab('provider'); setError(''); }}
+            onClick={() => handleTabChange('provider')}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'provider'
               ? 'bg-white text-teal-700 shadow-card'
               : 'text-gray-500 hover:text-gray-700'

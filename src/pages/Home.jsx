@@ -1,15 +1,98 @@
+import { useEffect, useRef, useState } from 'react';
 import { Bell, Search, MapPin, Heart, Clock, Navigation, Star, ChevronRight, ParkingCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useParkingLots from '../hooks/useParkingLots';
+import ParkingMap from '../components/map/ParkingMap';
 
 export default function Home() {
   const { currentUser, userProfile } = useAuth();
   const { lots, loading } = useParkingLots();
 
+  const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const autocompleteServiceRef = useRef(null);
+  const [selectedDestination, setSelectedDestination] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+
   const displayName = userProfile?.displayName
     || currentUser?.displayName
     || 'there';
+
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+    if (!apiKey) return;
+
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      const scriptId = 'google-maps-places-script';
+      if (!document.getElementById(scriptId)) {
+        const script = document.createElement('script');
+        script.id = scriptId;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          if (window.google?.maps?.places) {
+            autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
+          }
+        };
+        document.body.appendChild(script);
+      }
+    } else if (window.google?.maps?.places) {
+      autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
+    }
+  }, []);
+
+  const fetchSuggestions = (input) => {
+    if (!autocompleteServiceRef.current || !input.trim()) return;
+
+    autocompleteServiceRef.current.getPlacePredictions(
+      { input, componentRestrictions: { country: 'ke' } },
+      (predictions, status) => {
+        if (status !== window.google.maps.places.PlacesServiceStatus.OK || !predictions) {
+          setSuggestions([]);
+          setShowSuggestions(false);
+          return;
+        }
+        setSuggestions(predictions);
+        setShowSuggestions(true);
+      }
+    );
+  };
+
+  const handleSelectSuggestion = (suggestion) => {
+    setQuery(suggestion.description);
+    setShowSuggestions(false);
+    setSuggestions([]);
+    const apiKey = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+    if (!apiKey || !window.google || !window.google.maps) return;
+
+    // Get user location (if permission granted)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        () => {
+          // If denied, keep userLocation null; map will still show destination
+        }
+      );
+    }
+
+    // Use PlacesService to resolve place_id to coordinates
+    const dummyMap = document.createElement('div');
+    const service = new window.google.maps.places.PlacesService(dummyMap);
+    service.getDetails({ placeId: suggestion.place_id, fields: ['geometry', 'name'] }, (place, status) => {
+      if (status !== window.google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) return;
+      const loc = place.geometry.location;
+      setSelectedDestination({
+        lat: loc.lat(),
+        lng: loc.lng(),
+        name: place.name || suggestion.description,
+      });
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-safe page-enter">
@@ -26,17 +109,49 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100">
-          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <input
-            type="text"
-            placeholder="Search location or parking..."
-            className="flex-1 outline-none text-gray-700 bg-transparent text-sm placeholder-gray-400"
-          />
-          <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <MapPin className="w-4 h-4 text-white" />
+        {/* Search Bar with suggestions */}
+        <div className="relative">
+          <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100">
+            <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => {
+                const value = e.target.value;
+                setQuery(value);
+                if (!value.trim()) {
+                  setSuggestions([]);
+                  setShowSuggestions(false);
+                  return;
+                }
+                fetchSuggestions(value);
+              }}
+              onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
+              placeholder="Search location or parking..."
+              className="flex-1 outline-none text-gray-700 bg-transparent text-sm placeholder-gray-400"
+            />
+            <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <MapPin className="w-4 h-4 text-white" />
+            </div>
           </div>
+
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-20 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-100 max-h-64 overflow-y-auto">
+              {suggestions.map((s) => (
+                <button
+                  key={s.place_id}
+                  type="button"
+                  onClick={() => handleSelectSuggestion(s)}
+                  className="w-full px-4 py-2.5 flex items-start gap-2 hover:bg-gray-50 text-left"
+                >
+                  <MapPin className="w-4 h-4 mt-0.5 text-teal-600" />
+                  <div>
+                    <p className="text-xs font-semibold text-gray-800">{s.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -57,6 +172,11 @@ export default function Home() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Map */}
+      <div className="px-5 mt-5">
+        <ParkingMap lots={lots} userLocation={userLocation} destination={selectedDestination} />
       </div>
 
       {/* Available Parking Spots */}

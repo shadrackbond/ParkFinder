@@ -27,6 +27,15 @@ function loadGoogleMapsScript() {
 export default function Home() {
     const { currentUser, userProfile } = useAuth();
     const { lots, loading } = useParkingLots();
+    const { bookings } = useBookings(currentUser?.uid);
+
+    const now = new Date();
+    const activeSession = bookings?.find(b => {
+        if (b.status !== 'confirmed') return false;
+        const bStart = b.startTime?.seconds ? new Date(b.startTime.seconds * 1000) : (b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime));
+        const bEnd = b.endTime?.seconds ? new Date(b.endTime.seconds * 1000) : (b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime));
+        return now >= bStart && now <= bEnd;
+    });
 
     const [search, setSearch] = useState('');
     const [searchActive, setSearchActive] = useState(false);
@@ -71,7 +80,7 @@ export default function Home() {
         return () => clearTimeout(timer);
     }, [search]);
 
-    const matchLotsToPlace = useCallback((placeName) => {
+    const matchLotsToPlace = (placeName) => {
         if (!placeName) { setFilteredLots(null); return; }
         const terms = placeName.toLowerCase().split(/[\s,]+/).filter(Boolean);
         const matched = lots.filter((lot) => {
@@ -79,7 +88,7 @@ export default function Home() {
             return terms.some((t) => haystack.includes(t));
         });
         setFilteredLots(matched);
-    }, [lots]);
+    };
 
     function handleSelectSuggestion(prediction) {
         const name = prediction.structured_formatting?.main_text || prediction.description;
@@ -114,6 +123,22 @@ export default function Home() {
                         <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
                     </button>
                 </div>
+
+                {/* Live Booking Banner */}
+                {activeSession && (
+                    <div className="mb-4 bg-indigo-600 rounded-xl p-4 shadow-lg flex items-center justify-between text-white animate-pulse-slow">
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-200 mb-0.5">Live Booking</p>
+                            <p className="text-sm font-bold truncate pr-2">
+                                🚗 Active Session: {activeSession.lotName} until {
+                                    activeSession.endTime?.seconds 
+                                        ? new Date(activeSession.endTime.seconds * 1000).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }) 
+                                        : (activeSession.endTime?.toDate ? activeSession.endTime.toDate().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }) : '')
+                                }
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Google Places Search Bar */}
                 <div className="relative">

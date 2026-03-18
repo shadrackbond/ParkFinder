@@ -16,7 +16,7 @@ export default function History() {
       type: b.status === 'completed' ? 'completed' : 'active',
       amount: b.amount || 0,
       description: `${b.lotName || 'Parking'} — ${b.plateNumber || 'N/A'}`,
-      date: b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime || Date.now()),
+      date: b.startTime?.seconds ? new Date(b.startTime.seconds * 1000) : (b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime || Date.now())),
       lotImage: b.lotImage || '',
       paymentReceipt: b.paymentReceipt || null
     }));

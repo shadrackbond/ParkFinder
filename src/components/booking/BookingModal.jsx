@@ -110,8 +110,27 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                 endBookingDate.setDate(endBookingDate.getDate() + 1); // next day
             }
 
-            // Booking Availability Override Guard
+            // Prevent Double Booking for the current user
             const bookingsRef = collection(db, 'bookings');
+            const userBookingsQuery = query(bookingsRef, where('userId', '==', currentUser.uid), where('status', '==', 'confirmed'));
+            const userBookingsSnap = await getDocs(userBookingsQuery);
+            
+            let hasActiveUserBooking = false;
+            userBookingsSnap.forEach(docSnap => {
+                const b = docSnap.data();
+                const bEnd = b.endTime?.seconds ? new Date(b.endTime.seconds * 1000) : (b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime));
+                if (bEnd > activeDate) {
+                    hasActiveUserBooking = true;
+                }
+            });
+
+            if (hasActiveUserBooking) {
+                setError('You already have an active booking session.');
+                setLoading(false);
+                return;
+            }
+
+            // Booking Availability Override Guard
             const overlapQuery = query(bookingsRef, where('lotId', '==', lot.id), where('status', '==', 'confirmed'));
             const overlapSnapshot = await getDocs(overlapQuery);
             

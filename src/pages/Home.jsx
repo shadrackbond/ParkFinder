@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useParkingLots from '../hooks/useParkingLots';
 import BookingModal from '../components/booking/BookingModal';
+import useBookings from '../hooks/useBookings';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
 

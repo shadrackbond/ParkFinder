@@ -7,13 +7,13 @@ import { MapPin, Clock, QrCode } from 'lucide-react';
 export default function BookingCard({ booking, onViewQR, onCheckoutEarly }) {
     const formatTime = (date) => {
         if (!date) return '--:--';
-        const d = date instanceof Date ? date : new Date(date);
+        const d = date?.toDate ? date.toDate() : new Date(date);
         return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
     };
 
     const formatDate = (date) => {
         if (!date) return '';
-        const d = date instanceof Date ? date : new Date(date);
+        const d = date?.toDate ? date.toDate() : new Date(date);
         return d.toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
     };
 
@@ -63,7 +63,7 @@ export default function BookingCard({ booking, onViewQR, onCheckoutEarly }) {
                 <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                     <div>
                         <p className="text-[10px] text-gray-400 uppercase tracking-wider">Total</p>
-                        <p className="text-gray-900 font-bold text-sm">KSh {booking.totalPrice}</p>
+                        <p className="text-gray-900 font-bold text-sm">KSh {booking.amount || 0}</p>
                     </div>
                     {booking.status === 'active' && (
                         <div className="flex gap-2">

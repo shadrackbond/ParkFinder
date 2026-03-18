@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import ProviderNav from '../../components/provider/ProviderNav';
 import { TrendingUp, Car, DollarSign, Shield, MapPin, ParkingCircle, Loader2 } from 'lucide-react';
 import { getLotByProvider } from '../../services/parkingService';
+import { db } from '../../config/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 export default function ProviderDashboard() {
     const { currentUser, userProfile } = useAuth();
@@ -13,6 +15,8 @@ export default function ProviderDashboard() {
 
     const isPending = userProfile?.status === 'pending';
 
+    const [bookings, setBookings] = useState([]);
+
     useEffect(() => {
         if (!currentUser) return;
         getLotByProvider(currentUser.uid).then((data) => {
@@ -21,12 +25,35 @@ export default function ProviderDashboard() {
         });
     }, [currentUser]);
 
+    useEffect(() => {
+        if (!lot?.id) return;
+        const q = query(collection(db, 'bookings'), where('lotId', '==', lot.id));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => {
+                const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+                const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+                return tB - tA;
+            });
+            setBookings(data);
+        });
+        return () => unsubscribe();
+    }, [lot?.id]);
+
     const hasLotSetup = lot && lot.capacity > 0 && lot.hourlyRate > 0;
 
+    const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'active');
+    const revenue = bookings
+        .filter(b => b.status === 'confirmed' || b.status === 'completed')
+        .reduce((sum, b) => sum + (b.amount || 0), 0);
+
+    const occupancyRate = hasLotSetup && lot.capacity > 0 
+        ? Math.min(100, Math.round((activeBookings.length / lot.capacity) * 100)) 
+        : 0;
+
     const stats = [
-        { label: 'Today\'s Bookings', value: '0', icon: Car, color: 'bg-blue-50 text-blue-600' },
-        { label: 'Revenue (KSh)', value: '0', icon: DollarSign, color: 'bg-emerald-50 text-emerald-600' },
-        { label: 'Occupancy', value: hasLotSetup ? '0%' : '—', icon: TrendingUp, color: 'bg-teal-50 text-teal-600' },
+        { label: 'Today\'s Bookings', value: activeBookings.length.toString(), icon: Car, color: 'bg-blue-50 text-blue-600' },
+        { label: 'Revenue (KSh)', value: revenue.toLocaleString(), icon: DollarSign, color: 'bg-emerald-50 text-emerald-600' },
+        { label: 'Occupancy', value: hasLotSetup ? `${occupancyRate}%` : '—', icon: TrendingUp, color: 'bg-teal-50 text-teal-600' },
     ];
 
     return (
@@ -127,9 +154,28 @@ export default function ProviderDashboard() {
                     {/* Activity */}
                     <div>
                         <h2 className="text-sm font-bold text-gray-900 mb-3">Recent Activity</h2>
-                        <div className="bg-white rounded-xl border border-gray-100 p-6 text-center">
-                            <p className="text-gray-400 text-xs">No activity yet. Bookings will appear here.</p>
-                        </div>
+                        {bookings.length === 0 ? (
+                            <div className="bg-white rounded-xl border border-gray-100 p-6 text-center">
+                                <p className="text-gray-400 text-xs">No activity yet. Bookings will appear here.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {bookings.slice(0, 5).map(b => (
+                                    <div key={b.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">{b.plateNumber || 'Unknown Vehicle'}</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                {b.startTime?.toDate?.()?.toLocaleTimeString('en-KE', {hour:'2-digit', minute:'2-digit'}) || '--:--'} - {b.endTime?.toDate?.()?.toLocaleTimeString('en-KE', {hour:'2-digit', minute:'2-digit'}) || '--:--'}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm font-bold text-emerald-600">KSh {b.amount || 0}</p>
+                                            <span className="text-[10px] font-semibold text-gray-400 uppercase">{b.status}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>

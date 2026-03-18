@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, CreditCard, ShieldCheck, Clock } from 'lucide-react';
 import { db } from '../../config/firebase';
-import { doc, runTransaction, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -97,6 +97,41 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             const lotRef = doc(db, 'parking-lots', lot.id);
             let temporaryBookingId = null;
 
+            const activeDate = new Date();
+            const [sh, sm] = startTime.split(':').map(Number);
+            const [eh, em] = endTime.split(':').map(Number);
+            
+            const startBookingDate = new Date(activeDate);
+            startBookingDate.setHours(sh, sm, 0, 0);
+            
+            const endBookingDate = new Date(activeDate);
+            endBookingDate.setHours(eh, em, 0, 0);
+            if (endBookingDate < startBookingDate) {
+                endBookingDate.setDate(endBookingDate.getDate() + 1); // next day
+            }
+
+            // Booking Availability Override Guard
+            const bookingsRef = collection(db, 'bookings');
+            const overlapQuery = query(bookingsRef, where('lotId', '==', lot.id), where('status', '==', 'confirmed'));
+            const overlapSnapshot = await getDocs(overlapQuery);
+            
+            let isOverlapping = false;
+            overlapSnapshot.forEach(docSnap => {
+                const b = docSnap.data();
+                const bStart = b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime);
+                const bEnd = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime);
+                
+                if (startBookingDate < bEnd && endBookingDate > bStart) {
+                    isOverlapping = true;
+                }
+            });
+
+            if (isOverlapping) {
+                setError('This slot is already taken during that time.');
+                setLoading(false);
+                return;
+            }
+
             // Double Booking Guard using Transaction
             await runTransaction(db, async (transaction) => {
                 const lotDoc = await transaction.get(lotRef);
@@ -118,18 +153,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                 const newBookingRef = doc(collection(db, 'bookings'));
                 temporaryBookingId = newBookingRef.id;
                 
-                const activeDate = new Date();
-                const [sh, sm] = startTime.split(':').map(Number);
-                const [eh, em] = endTime.split(':').map(Number);
-                
-                const startBookingDate = new Date(activeDate);
-                startBookingDate.setHours(sh, sm, 0, 0);
-                
-                const endBookingDate = new Date(activeDate);
-                endBookingDate.setHours(eh, em, 0, 0);
-                if (endBookingDate < startBookingDate) {
-                    endBookingDate.setDate(endBookingDate.getDate() + 1); // next day
-                }
+                // Use the dates we evaluated prior to transaction
 
                 transaction.set(newBookingRef, {
                     userId: currentUser?.uid,
@@ -143,7 +167,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                     status: 'reserved-pending',
                     expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes soft-lock
                     createdAt: serverTimestamp(),
-                    location: lot.location || null
+                    location: lot.location || lot.name
                 });
             });
 

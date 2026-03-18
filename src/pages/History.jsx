@@ -14,9 +14,9 @@ export default function History() {
     .map((b) => ({
       id: b.id,
       type: b.status === 'completed' ? 'completed' : 'active',
-      amount: b.totalPrice || 0,
-      description: `${b.lotName || 'Parking'} — ${b.spotNumber || 'N/A'}`,
-      date: b.startTime ? (b.startTime instanceof Date ? b.startTime : new Date(b.startTime?.seconds ? b.startTime.seconds * 1000 : b.startTime)) : new Date(),
+      amount: b.amount || 0,
+      description: `${b.lotName || 'Parking'} — ${b.plateNumber || 'N/A'}`,
+      date: b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime || Date.now()),
       lotImage: b.lotImage || '',
       paymentReceipt: b.paymentReceipt || null
     }));

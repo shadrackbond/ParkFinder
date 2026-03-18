@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, CreditCard, ShieldCheck, Clock } from 'lucide-react';
 import { db } from '../../config/firebase';
-import { doc, runTransaction, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, collection, serverTimestamp } from 'firebase/firestore';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useBookings from '../hooks/useBookings';
@@ -21,8 +22,12 @@ export default function History() {
     }));
 
   // Group by date
-  const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  const { today, yesterday } = useMemo(() => {
+    return {
+      today: new Date().toDateString(),
+      yesterday: new Date(Date.now() - 86400000).toDateString()
+    };
+  }, []);
 
   function getDateLabel(date) {
     if (date.toDateString() === today) return 'Today';

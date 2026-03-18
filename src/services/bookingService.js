@@ -4,7 +4,7 @@
  * Firestore Collection: "bookings"
  */
 
-import { collection, query, where, getDocs, orderBy, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 /**

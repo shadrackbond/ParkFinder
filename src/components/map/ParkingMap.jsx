@@ -13,17 +13,26 @@ export default function ParkingMap({ lots = [], onSelectLot, userLocation, desti
     const directionsServiceRef = useRef(null);
     const directionsRendererRef = useRef(null);
 
-    useEffect(() => {
-        const apiKey = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
-        if (!apiKey) return;
+        useEffect(() => {
+        const apiKey =
+            import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+            || import.meta.env.VITE_GOOGLE_MAPS_KEY
+            || import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+        if (!apiKey) {
+			// eslint-disable-next-line no-console
+			console.warn('Google Maps API key is missing. Set VITE_GOOGLE_MAPS_API_KEY in your .env file.');
+            return;
+        }
 
-        if (!window.google || !window.google.maps) {
+                if (!window.google || !window.google.maps) {
             const scriptId = 'google-maps-places-script';
             const existing = document.getElementById(scriptId);
             if (!existing) {
                 const script = document.createElement('script');
                 script.id = scriptId;
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
+				// Use the standard loader (no loading=async) to ensure
+				// google.maps.Map is available as a constructor.
+				script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
                 script.async = true;
                 script.defer = true;
                 script.onload = () => initMap();
@@ -41,6 +50,14 @@ export default function ParkingMap({ lots = [], onSelectLot, userLocation, desti
 
         function initMap() {
             if (!mapRef.current || !window.google || mapInstanceRef.current) return;
+
+            // Defensive check: if the Maps library didn't load correctly,
+            // avoid throwing `Map is not a constructor` and surface a clear error.
+            if (!window.google.maps || typeof window.google.maps.Map !== 'function') {
+                // eslint-disable-next-line no-console
+                console.error('Google Maps JS library did not load correctly: google.maps.Map is not a constructor.');
+                return;
+            }
 
             const defaultCenter = destination
                 ? { lat: destination.lat, lng: destination.lng }

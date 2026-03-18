@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useParkingLots from '../hooks/useParkingLots';
 import ParkingMap from '../components/map/ParkingMap';
-import { initAutocompleteService, fetchPlaceSuggestions, resolveDestinationAndNearbyParking, buildExternalBookingUrl } from '../services/search_function';
+import { initAutocompleteService, fetchPlaceSuggestions, resolveDestinationAndNearbyParking, buildExternalBookingUrl } from '../services/maps_and_navigation/search_function';
+import { calculateDrivingMetrics } from '../services/maps_and_navigation/proximity_calculation';
 
 export default function Home() {
   const { currentUser, userProfile } = useAuth();
@@ -18,14 +19,22 @@ export default function Home() {
   const [userLocation, setUserLocation] = useState(null);
   const [webParking, setWebParking] = useState([]);
   const [webLoading, setWebLoading] = useState(false);
+  const [distanceInfo, setDistanceInfo] = useState({});
 
   const displayName = userProfile?.displayName
     || currentUser?.displayName
     || 'there';
 
   useEffect(() => {
-    const apiKey = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
-    if (!apiKey) return;
+  const apiKey =
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    || import.meta.env.VITE_GOOGLE_MAPS_KEY
+    || import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+	if (!apiKey) {
+		// eslint-disable-next-line no-console
+		console.warn('Google Maps API key is missing. Set VITE_GOOGLE_MAPS_API_KEY in your .env file.');
+		return;
+	}
 
     initAutocompleteService(apiKey).then((service) => {
       autocompleteServiceRef.current = service;
@@ -50,8 +59,15 @@ export default function Home() {
     setQuery(suggestion.description);
     setShowSuggestions(false);
     setSuggestions([]);
-    const apiKey = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
-    if (!apiKey) return;
+  const apiKey =
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    || import.meta.env.VITE_GOOGLE_MAPS_KEY
+    || import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+  if (!apiKey) {
+    // eslint-disable-next-line no-console
+    console.warn('Google Maps API key is missing. Set VITE_GOOGLE_MAPS_API_KEY in your .env file.');
+    return;
+  }
 
     // Get user location (if permission granted)
     if (navigator.geolocation) {
@@ -80,6 +96,37 @@ export default function Home() {
 
   const effectiveLots = webParking.length > 0 ? webParking : lots;
   const effectiveLoading = webParking.length > 0 ? webLoading : loading;
+
+  useEffect(() => {
+  const apiKey =
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    || import.meta.env.VITE_GOOGLE_MAPS_KEY
+    || import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+    if (!apiKey || !userLocation || effectiveLots.length === 0) return;
+
+    const spotsWithLocation = effectiveLots.filter(
+      (spot) => spot.location && typeof spot.location.lat === 'number' && typeof spot.location.lng === 'number'
+    );
+    if (spotsWithLocation.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const metrics = await calculateDrivingMetrics(userLocation, spotsWithLocation, apiKey);
+        if (!cancelled) {
+          setDistanceInfo(metrics);
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error calculating driving distances', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userLocation, effectiveLots]);
 
   const handleBook = (spot) => {
     if (spot.isExternal && spot.location) {
@@ -262,6 +309,17 @@ export default function Home() {
                     </div>
                     <p className="text-xs text-gray-400 flex items-center gap-1 mb-3">
                       <MapPin className="w-3 h-3" /> {spot.address}
+                    </p>
+
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1 mb-2">
+                      <Navigation className="w-3 h-3 text-teal-600" />
+                      {distanceInfo[spot.id]
+                        ? `${distanceInfo[spot.id].distanceText} 
+                        
+                        • ${distanceInfo[spot.id].durationText} drive`
+                        : userLocation
+                          ? 'Calculating route…'
+                          : 'Enable location to see distance'}
                     </p>
 
                     <div className="flex items-center justify-between">

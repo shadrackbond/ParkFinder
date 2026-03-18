@@ -27,7 +27,9 @@ function loadGoogleMapsPlaces(apiKey) {
 
 		const script = document.createElement('script');
 		script.id = PLACES_SCRIPT_ID;
-		script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
+		// Use the standard loader; no loading=async to keep
+		// constructor-based APIs like google.maps.Map stable.
+		script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
 		script.async = true;
 		script.defer = true;
 		script.onload = () => resolve();

@@ -30,7 +30,10 @@ try {
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// Safaricom Daraja sometimes sends callbacks without strict application/json headers
+// Parsing '*/*' universally prevents the body from being dropped and causing unhandled 400 rejections 
+app.use(express.json({ type: '*/*' }));
+app.use(express.urlencoded({ extended: true }));
 
 // 3. ADDED: Health check for the "Wake-up" ping
 app.get('/health-check', (req, res) => res.status(200).send('Server is active'));

@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import RoleRoute from './components/common/RoleRoute';
@@ -32,6 +34,11 @@ function SmartRedirect() {
 }
 
 function App() {
+  // Wake-up ping for Render free-tier
+  useEffect(() => {
+    axios.get('https://parkfinder-hwy4.onrender.com/health-check').catch(() => {});
+  }, []);
+
   return (
     <AuthProvider>
       <Router>

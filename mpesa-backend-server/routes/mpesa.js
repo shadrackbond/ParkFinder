@@ -21,7 +21,7 @@ router.post('/stkpush', async (req, res) => {
         const timestamp = getTimestamp();
         const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
 
-        const callbackUrl = process.env.MPESA_CALLBACK_URL || 'https://sandbox.safaricom.co.ke/mpesa/'; // Fallback for local testing
+        const callbackUrl = process.env.MPESA_CALLBACK_URL || 'https://parkfinder-hwy4.onrender.com/api/mpesa/callback'; // Fallback for local testing
 
         const payload = {
             BusinessShortCode: shortcode,

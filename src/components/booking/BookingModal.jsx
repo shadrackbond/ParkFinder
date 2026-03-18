@@ -148,7 +148,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             });
 
             // Trigger M-Pesa STK Push
-            const response = await axios.post('http://localhost:5000/api/mpesa/stkpush', {
+            const response = await axios.post('https://parkfinder-hwy4.onrender.com/api/mpesa/stkpush', {
                 phone,
                 amount,
                 accountReference: plate.toUpperCase(),

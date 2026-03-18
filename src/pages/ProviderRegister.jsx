@@ -1,7 +1,25 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Building2, Phone, MapPin, AlertCircle, ArrowLeft, CheckCircle2, Image, UserCircle } from 'lucide-react';
+
+const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+
+function loadGoogleMapsScript() {
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (window._googleMapsPromise) return window._googleMapsPromise;
+
+    window._googleMapsPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+    return window._googleMapsPromise;
+}
 
 export default function ProviderRegister() {
     const location = useLocation();
@@ -20,6 +38,42 @@ export default function ProviderRegister() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+
+    const [suggestions, setSuggestions] = useState([]);
+    const [searchActive, setSearchActive] = useState(false);
+    const autocompleteService = useRef(null);
+
+    useEffect(() => {
+        loadGoogleMapsScript().then(() => {
+            autocompleteService.current = new window.google.maps.places.AutocompleteService();
+        }).catch(() => console.error('Failed to load Google Maps'));
+    }, []);
+
+    useEffect(() => {
+        if (!businessLocation.trim() || !autocompleteService.current || !searchActive) {
+            setSuggestions([]);
+            return;
+        }
+        const timer = setTimeout(() => {
+            autocompleteService.current.getPlacePredictions(
+                { input: businessLocation, componentRestrictions: { country: 'ke' } },
+                (predictions, status) => {
+                    if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+                        setSuggestions(predictions || []);
+                    } else {
+                        setSuggestions([]);
+                    }
+                }
+            );
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [businessLocation, searchActive]);
+
+    function handleSelectSuggestion(prediction) {
+        setBusinessLocation(prediction.description);
+        setSuggestions([]);
+        setSearchActive(false);
+    }
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -145,8 +199,27 @@ export default function ProviderRegister() {
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">Business Location</label>
                             <div className="relative">
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input type="text" value={businessLocation} onChange={(e) => setBusinessLocation(e.target.value)}
+                                <input type="text" value={businessLocation} 
+                                    onChange={(e) => setBusinessLocation(e.target.value)}
+                                    onFocus={() => setSearchActive(true)}
+                                    onBlur={() => setTimeout(() => setSearchActive(false), 200)}
                                     className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition placeholder-gray-400" placeholder="e.g. Westlands, Nairobi" />
+                                
+                                {suggestions.length > 0 && searchActive && (
+                                    <ul className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg z-50 overflow-hidden max-h-48 overflow-y-auto">
+                                        {suggestions.map((s) => (
+                                            <li key={s.place_id}>
+                                                <button type="button"
+                                                    className="w-full px-4 py-3 text-left hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
+                                                    onMouseDown={() => handleSelectSuggestion(s)}
+                                                >
+                                                    <p className="text-sm font-medium text-gray-800">{s.structured_formatting?.main_text}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5">{s.structured_formatting?.secondary_text}</p>
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
                             </div>
                         </div>
 
@@ -168,9 +241,9 @@ export default function ProviderRegister() {
                             </label>
                             <div className="relative">
                                 <Image className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input type="url" value={businessImage} onChange={(e) => setBusinessImage(e.target.value)}
+                                <input type="text" value={businessImage} onChange={(e) => setBusinessImage(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition placeholder-gray-400"
-                                    placeholder="https://example.com/parking-photo.jpg" />
+                                    placeholder="Paste image link from Google..." />
                             </div>
                             <p className="text-xs text-gray-400 mt-1">Upload a landscape photo (4:3 ratio) showing your parking facility. JPG or PNG, min 800×600px.</p>
                         </div>

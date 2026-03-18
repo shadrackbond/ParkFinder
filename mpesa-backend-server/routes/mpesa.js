@@ -1,0 +1,120 @@
+const express = require('express');
+const router = express.Router();
+const tokenSingleton = require('../utils/tokenSingleton');
+const axios = require('axios');
+const admin = require('firebase-admin');
+
+const getTimestamp = () => {
+    const date = new Date();
+    const pad = (n) => (n < 10 ? '0' + n : n);
+    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+};
+
+router.post('/stkpush', async (req, res) => {
+    try {
+        const { phone, amount, accountReference, transactionDesc } = req.body;
+
+        const token = await tokenSingleton.getToken();
+        
+        const shortcode = process.env.MPESA_SHORTCODE;
+        const passkey = process.env.MPESA_PASSKEY;
+        const timestamp = getTimestamp();
+        const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+
+        const callbackUrl = process.env.MPESA_CALLBACK_URL || 'https://sandbox.safaricom.co.ke/mpesa/'; // Fallback for local testing
+
+        const payload = {
+            BusinessShortCode: shortcode,
+            Password: password,
+            Timestamp: timestamp,
+            TransactionType: 'CustomerPayBillOnline',
+            Amount: amount,
+            PartyA: phone, 
+            PartyB: shortcode,
+            PhoneNumber: phone,
+            CallBackURL: callbackUrl, 
+            AccountReference: accountReference || 'ParkEase',
+            TransactionDesc: transactionDesc || 'Parking Payment'
+        };
+
+        const response = await axios.post(
+            'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
+            payload,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            }
+        );
+
+        // Optional: Save the CheckoutRequestID to the booking document for tracking
+        if (req.body.bookingId) {
+            const db = admin.firestore();
+            await db.collection('bookings').doc(req.body.bookingId).update({
+                checkoutRequestId: response.data.CheckoutRequestID
+            });
+        }
+
+        res.json({ success: true, data: response.data });
+    } catch (error) {
+        console.error('STK Push Error:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: 'Failed to initiate STK Push', details: error.response?.data || error.message });
+    }
+});
+
+router.post('/callback', async (req, res) => {
+    try {
+        const callbackData = req.body.Body?.stkCallback;
+        if (!callbackData) {
+            return res.status(400).json({ success: false, error: 'Invalid callback data' });
+        }
+
+        const resultCode = callbackData.ResultCode;
+        const checkoutRequestId = callbackData.CheckoutRequestID;
+        
+        const db = admin.firestore();
+        const bookingsRef = db.collection('bookings');
+        const q = bookingsRef.where('checkoutRequestId', '==', checkoutRequestId);
+        const snapshot = await q.get();
+
+        if (resultCode === 0) {
+            // Success
+            const metadataItem = callbackData.CallbackMetadata?.Item;
+            const receiptItem = metadataItem?.find(item => item.Name === 'MpesaReceiptNumber');
+            const receipt = receiptItem ? receiptItem.Value : 'N/A';
+            
+            if (!snapshot.empty) {
+                const batch = db.batch();
+                snapshot.docs.forEach((doc) => {
+                    batch.update(doc.ref, {
+                        status: 'confirmed',
+                        paymentReceipt: receipt,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                await batch.commit();
+            }
+        } else {
+            // Failed
+            if (!snapshot.empty) {
+                const batch = db.batch();
+                snapshot.docs.forEach((doc) => {
+                    batch.update(doc.ref, {
+                        status: 'payment-failed',
+                        failureReason: callbackData.ResultDesc,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                await batch.commit();
+            }
+        }
+
+        // Always acknowledge M-Pesa with 200
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Callback parsing error:', error);
+        res.status(200).json({ success: true });
+    }
+});
+
+module.exports = router;

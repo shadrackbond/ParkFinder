@@ -1,36 +1,67 @@
 /**
  * parkingService.js — Parking Lot Data
  *
- * Fetches approved providers from Firestore as parking spots.
+ * All lot data lives in the `parking-lots` Firestore collection.
+ * Each document is keyed by providerId for easy upserts.
+ *
+ * Collection: "parking-lots"
+ * Doc ID: providerId (the provider's Firebase Auth UID)
+ * {
+ *   providerId: string,
+ *   businessName: string,
+ *   businessLocation: string,
+ *   description: string,
+ *   hourlyRate: number,
+ *   capacity: number,
+ *   availableSpots: number,
+ *   lotImages: string[],
+ *   businessImage: string,   // first image
+ *   isActive: boolean,       // true only when provider is approved
+ *   createdAt: Timestamp,
+ *   updatedAt: Timestamp,
+ * }
  */
 
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import {
+    collection,
+    query,
+    where,
+    getDocs,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    deleteDoc,
+    serverTimestamp,
+} from 'firebase/firestore';
 import { db } from '../config/firebase';
 
+const LOTS_COLLECTION = 'parking-lots';
+
 /**
- * Fetch all approved providers as parking spots for the Home page.
- * Each active provider with business info = a parking listing.
+ * Fetch all active (approved) parking lots for the Home page.
  */
-export async function fetchNearbyLots(lat = -1.2921, lng = 36.8219, radiusKm = 5) {
+export async function fetchNearbyLots() {
     try {
         const q = query(
-            collection(db, 'users'),
-            where('role', '==', 'provider'),
-            where('status', '==', 'active')
+            collection(db, LOTS_COLLECTION),
+            where('isActive', '==', true)
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map((d) => {
             const data = d.data();
             return {
-                id: d.id,
+                id: d.id,                                          // = providerId
+                providerId: data.providerId,
                 name: data.businessName || 'Unnamed Lot',
                 address: data.businessLocation || 'Nairobi',
                 imageUrl: data.lotImages?.[0] || data.businessImage || '',
                 lotImages: data.lotImages || (data.businessImage ? [data.businessImage] : []),
                 hourlyRate: data.hourlyRate || 100,
                 rating: data.rating || 4.5,
-                availableSpots: data.availableSpots ?? 20,
+                availableSpots: data.availableSpots ?? data.capacity ?? 20,
                 capacity: data.capacity || 50,
+                description: data.description || '',
             };
         });
     } catch (err) {
@@ -40,14 +71,26 @@ export async function fetchNearbyLots(lat = -1.2921, lng = 36.8219, radiusKm = 5
 }
 
 /**
- * Get a single lot/provider by ID.
+ * Get all lots — for admin use (active + inactive).
  */
-export async function getLotById(lotId) {
+export async function fetchAllLots() {
     try {
-        const snap = await getDoc(doc(db, 'users', lotId));
-        if (!snap.exists()) return null;
-        const data = snap.data();
-        return { id: snap.id, ...data };
+        const snapshot = await getDocs(collection(db, LOTS_COLLECTION));
+        return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+        console.error('Failed to fetch all lots:', err);
+        return [];
+    }
+}
+
+/**
+ * Get the parking lot belonging to a specific provider.
+ * Doc ID is the providerId.
+ */
+export async function getLotByProvider(providerId) {
+    try {
+        const snap = await getDoc(doc(db, LOTS_COLLECTION, providerId));
+        return snap.exists() ? { id: snap.id, ...snap.data() } : null;
     } catch (err) {
         console.error('Failed to get lot:', err);
         return null;
@@ -55,31 +98,81 @@ export async function getLotById(lotId) {
 }
 
 /**
- * Create a new parking lot document.
- * // TODO (Teammate Hole): Move to dedicated parkingLots collection
+ * Get a single lot by its ID (providerId === lot doc ID).
  */
-export async function createLot(providerId, lotData) {
+export async function getLotById(lotId) {
+    return getLotByProvider(lotId);
+}
+
+/**
+ * Create or update a provider's parking lot.
+ * Uses providerId as the document ID so there's always 1 lot per provider.
+ */
+export async function createOrUpdateLot(providerId, lotData) {
     try {
-        const ref = await addDoc(collection(db, 'parkingLots'), {
-            ...lotData,
-            providerId,
-            isActive: true,
-            createdAt: serverTimestamp(),
-        });
-        return ref.id;
+        const ref = doc(db, LOTS_COLLECTION, providerId);
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+            await updateDoc(ref, {
+                ...lotData,
+                providerId,
+                updatedAt: serverTimestamp(),
+            });
+        } else {
+            await setDoc(ref, {
+                ...lotData,
+                providerId,
+                isActive: false,        // inactive until admin approves
+                availableSpots: lotData.capacity || 0,
+                rating: 4.5,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+        }
     } catch (err) {
-        console.error('Failed to create lot:', err);
+        console.error('Failed to save lot:', err);
         throw err;
     }
 }
 
 /**
- * Update lot availability.
- * // TODO (Teammate Hole): Use Firestore transactions for atomicity
+ * Activate or deactivate a lot (called when admin approves/rejects provider).
  */
-export async function updateLotAvailability(lotId, availableSpots) {
+export async function setLotActive(providerId, isActive) {
     try {
-        await updateDoc(doc(db, 'parkingLots', lotId), { availableSpots });
+        const ref = doc(db, LOTS_COLLECTION, providerId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+            await updateDoc(ref, { isActive, updatedAt: serverTimestamp() });
+        }
+        // If no lot doc exists yet (provider registered but never set up lot), do nothing
+    } catch (err) {
+        console.error('Failed to update lot active state:', err);
+    }
+}
+
+/**
+ * Delete a provider's parking lot. Admin only.
+ */
+export async function deleteLot(providerId) {
+    try {
+        await deleteDoc(doc(db, LOTS_COLLECTION, providerId));
+    } catch (err) {
+        console.error('Failed to delete lot:', err);
+        throw err;
+    }
+}
+
+/**
+ * Update lot spot availability (called after a booking is made/cancelled).
+ */
+export async function updateLotAvailability(providerId, availableSpots) {
+    try {
+        await updateDoc(doc(db, LOTS_COLLECTION, providerId), {
+            availableSpots,
+            updatedAt: serverTimestamp(),
+        });
     } catch (err) {
         console.error('Failed to update availability:', err);
         throw err;

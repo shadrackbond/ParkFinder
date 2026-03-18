@@ -73,8 +73,9 @@ src/
 │   ├── paymentService.js# M-Pesa integration (placeholder)
 │   ├── qrService.js     # QR code generation & validation (placeholder)
 │   └── userService.js   # User profile CRUD
-└── store/
-    └── useParkingStore.js # Zustand store for parking lot state
+├── store/
+│   └── useParkingStore.js # Zustand store for parking lot state
+└── mpesa-backend-server/ # 💳 High-performance Node.js backend for Daraja M-Pesa STK push & callbacks
 ```
 
 ### How It Works (Data Flow)

@@ -1,13 +1,27 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ProviderNav from '../../components/provider/ProviderNav';
-import { TrendingUp, Car, DollarSign, Shield, MapPin, ParkingCircle } from 'lucide-react';
+import { TrendingUp, Car, DollarSign, Shield, MapPin, ParkingCircle, Loader2 } from 'lucide-react';
+import { getLotByProvider } from '../../services/parkingService';
 
 export default function ProviderDashboard() {
-    const { userProfile } = useAuth();
+    const { currentUser, userProfile } = useAuth();
     const navigate = useNavigate();
+    const [lot, setLot] = useState(null);
+    const [loadingLot, setLoadingLot] = useState(true);
+
     const isPending = userProfile?.status === 'pending';
-    const hasLotSetup = userProfile?.capacity && userProfile?.hourlyRate;
+
+    useEffect(() => {
+        if (!currentUser) return;
+        getLotByProvider(currentUser.uid).then((data) => {
+            setLot(data);
+            setLoadingLot(false);
+        });
+    }, [currentUser]);
+
+    const hasLotSetup = lot && lot.capacity > 0 && lot.hourlyRate > 0;
 
     const stats = [
         { label: 'Today\'s Bookings', value: '0', icon: Car, color: 'bg-blue-50 text-blue-600' },
@@ -27,7 +41,13 @@ export default function ProviderDashboard() {
                         </p>
                     </div>
 
-                    {/* Pending Banner */}
+                    {loadingLot ? (
+                        <div className="flex items-center justify-center py-10">
+                            <Loader2 className="w-6 h-6 text-teal-500 animate-spin" />
+                        </div>
+                    ) : (
+                        <>
+                            {/* Pending Banner */}
                     {isPending && (
                         <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-5 flex items-start gap-3">
                             <Shield className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -67,9 +87,9 @@ export default function ProviderDashboard() {
 
                         {hasLotSetup ? (
                             <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                                {userProfile?.businessImage ? (
+                                {lot?.businessImage ? (
                                     <div className="h-32 overflow-hidden">
-                                        <img src={userProfile.businessImage} alt={userProfile.businessName}
+                                        <img src={lot.businessImage} alt={lot.businessName || 'Lot'}
                                             className="w-full h-full object-cover" />
                                     </div>
                                 ) : (
@@ -78,16 +98,16 @@ export default function ProviderDashboard() {
                                     </div>
                                 )}
                                 <div className="p-4">
-                                    <h3 className="text-gray-900 font-bold text-sm">{userProfile?.businessName}</h3>
+                                    <h3 className="text-gray-900 font-bold text-sm">{lot?.businessName || 'Unnamed Lot'}</h3>
                                     <p className="text-gray-400 text-xs flex items-center gap-1 mt-0.5">
-                                        <MapPin className="w-3 h-3" /> {userProfile?.businessLocation}
+                                        <MapPin className="w-3 h-3" /> {lot?.businessLocation || 'Location not set'}
                                     </p>
                                     <div className="flex items-center gap-3 mt-3 text-xs">
                                         <span className="bg-gray-50 px-2.5 py-1 rounded-lg text-gray-600 font-medium">
-                                            {userProfile?.capacity} spaces
+                                            {lot?.capacity} spaces
                                         </span>
                                         <span className="bg-teal-50 px-2.5 py-1 rounded-lg text-teal-700 font-medium">
-                                            KSh {userProfile?.hourlyRate}/hr
+                                            KSh {lot?.hourlyRate}/hr
                                         </span>
                                     </div>
                                 </div>
@@ -101,6 +121,8 @@ export default function ProviderDashboard() {
                             </button>
                         )}
                     </div>
+                    </>
+                    )}
 
                     {/* Activity */}
                     <div>

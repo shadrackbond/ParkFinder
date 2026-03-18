@@ -17,6 +17,7 @@ export default function History() {
       description: `${b.lotName || 'Parking'} — ${b.spotNumber || 'N/A'}`,
       date: b.startTime ? (b.startTime instanceof Date ? b.startTime : new Date(b.startTime?.seconds ? b.startTime.seconds * 1000 : b.startTime)) : new Date(),
       lotImage: b.lotImage || '',
+      paymentReceipt: b.paymentReceipt || null
     }));
 
   // Group by date
@@ -84,7 +85,7 @@ export default function History() {
                     <div className="flex-1 min-w-0">
                       <p className="text-gray-900 font-medium text-sm truncate">{tx.description}</p>
                       <p className="text-gray-400 text-[10px]">
-                        {tx.date.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })} • M-Pesa
+                        {tx.date.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })} • M-Pesa {tx.paymentReceipt && `• ${tx.paymentReceipt}`}
                       </p>
                     </div>
                     <p className="font-bold text-sm flex-shrink-0 text-gray-900">

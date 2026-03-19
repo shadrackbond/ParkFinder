@@ -141,12 +141,18 @@ export async function createOrUpdateLot(providerId, lotData) {
         const snap = await getDoc(ref);
 
         if (snap.exists()) {
-            const existing = snap.data();
-            const oldCapacity = Number(existing.capacity) || 0;
-            const oldAvailable = existing.availableSpots ?? oldCapacity;
-            const occupied = Math.max(oldCapacity - oldAvailable, 0);
             const nextCapacity = Number(lotData.capacity) || 0;
-            const nextAvailable = Math.max(nextCapacity - occupied, 0);
+
+            // Recompute occupied spots from live booking records to avoid stale availability.
+            const bookingsSnap = await getDocs(
+                query(collection(db, 'bookings'), where('lotId', '==', providerId))
+            );
+            const activeStatuses = new Set(['reserved-pending', 'confirmed', 'active']);
+            const occupiedByBookings = bookingsSnap.docs.reduce((count, bookingDoc) => {
+                const status = bookingDoc.data()?.status;
+                return activeStatuses.has(status) ? count + 1 : count;
+            }, 0);
+            const nextAvailable = Math.max(nextCapacity - occupiedByBookings, 0);
 
             await updateDoc(ref, {
                 ...lotData,

@@ -132,8 +132,8 @@ export default function Home() {
                             <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-200 mb-0.5">Live Booking</p>
                             <p className="text-sm font-bold truncate pr-2">
                                 🚗 Active Session: {activeSession.lotName} until {
-                                    activeSession.endTime?.seconds 
-                                        ? new Date(activeSession.endTime.seconds * 1000).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }) 
+                                    activeSession.endTime?.seconds
+                                        ? new Date(activeSession.endTime.seconds * 1000).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })
                                         : (activeSession.endTime?.toDate ? activeSession.endTime.toDate().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }) : '')
                                 }
                             </p>
@@ -263,6 +263,7 @@ export default function Home() {
                     <div className="space-y-4">
                         {displayLots.map((spot) => {
                             const images = spot.lotImages || (spot.imageUrl ? [spot.imageUrl] : []);
+                            const isFull = Number(spot.availableSpots ?? 0) <= 0;
                             return (
                                 <div key={spot.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                                     {images.length === 0 && (
@@ -312,10 +313,14 @@ export default function Home() {
                                                 </span>
                                                 <span className="text-emerald-600 font-semibold">{spot.availableSpots} slots</span>
                                             </div>
-                                            <button 
+                                            <button
+                                                disabled={isFull}
                                                 onClick={() => setSelectedLotForBooking(spot)}
-                                                className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-semibold transition text-xs">
-                                                Book
+                                                className={`px-4 py-2 rounded-lg font-semibold transition text-xs ${isFull
+                                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-teal-600 hover:bg-teal-700 text-white'
+                                                    }`}>
+                                                {isFull ? 'Full' : 'Book'}
                                             </button>
                                         </div>
                                     </div>
@@ -327,11 +332,11 @@ export default function Home() {
             </div>
 
             <BottomNav />
-            
-            <BookingModal 
-                isOpen={!!selectedLotForBooking} 
-                onClose={() => setSelectedLotForBooking(null)} 
-                lot={selectedLotForBooking} 
+
+            <BookingModal
+                isOpen={!!selectedLotForBooking}
+                onClose={() => setSelectedLotForBooking(null)}
+                lot={selectedLotForBooking}
                 onSuccess={() => setSelectedLotForBooking(null)}
             />
         </div>

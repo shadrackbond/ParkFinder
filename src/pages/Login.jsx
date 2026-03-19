@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Car, Mail, Lock, AlertCircle, User, Building2, UserCircle } from 'lucide-react';
+import { getFirebaseAuthErrorMessage } from '../utils/firebaseError';
 
 export default function Login() {
   const [activeTab, setActiveTab] = useState('customer');
@@ -43,7 +44,7 @@ export default function Login() {
         navigate('/');
       }
     } catch (err) {
-      setError(err.message.replace('Firebase: ', '').replace(/\(auth.*\)/, ''));
+      setError(getFirebaseAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }

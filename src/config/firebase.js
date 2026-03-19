@@ -10,6 +10,20 @@ import { getFirestore } from "firebase/firestore";
 // Firebase configuration object
 // These values are loaded from environment variables (Vite project setup)
 // This keeps sensitive keys out of your source code
+const requiredFirebaseEnvVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID',
+];
+
+const missingFirebaseEnvVars = requiredFirebaseEnvVars.filter((key) => !import.meta.env[key]);
+if (missingFirebaseEnvVars.length) {
+  throw new Error(`Missing Firebase environment variables: ${missingFirebaseEnvVars.join(', ')}`);
+}
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY, // Your Firebase API key
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, // Auth domain for Firebase authentication

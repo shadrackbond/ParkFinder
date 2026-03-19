@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useBookings from '../hooks/useBookings';
@@ -13,16 +14,20 @@ export default function History() {
     .map((b) => ({
       id: b.id,
       type: b.status === 'completed' ? 'completed' : 'active',
-      amount: b.totalPrice || 0,
-      description: `${b.lotName || 'Parking'} — ${b.spotNumber || 'N/A'}`,
-      date: b.startTime ? (b.startTime instanceof Date ? b.startTime : new Date(b.startTime?.seconds ? b.startTime.seconds * 1000 : b.startTime)) : new Date(),
+      amount: b.amount || 0,
+      description: `${b.lotName || 'Parking'} — ${b.plateNumber || 'N/A'}`,
+      date: b.startTime?.seconds ? new Date(b.startTime.seconds * 1000) : (b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime || Date.now())),
       lotImage: b.lotImage || '',
+      paymentReceipt: b.paymentReceipt || null
     }));
 
   // Group by date
-  const todayObj = new Date();
-  const today = todayObj.toDateString();
-  const yesterday = new Date(todayObj.getTime() - 86400000).toDateString();
+  const { today, yesterday } = useMemo(() => {
+    return {
+      today: new Date().toDateString(),
+      yesterday: new Date(Date.now() - 86400000).toDateString()
+    };
+  }, []);
 
   function getDateLabel(date) {
     if (date.toDateString() === today) return 'Today';
@@ -85,7 +90,7 @@ export default function History() {
                     <div className="flex-1 min-w-0">
                       <p className="text-gray-900 font-medium text-sm truncate">{tx.description}</p>
                       <p className="text-gray-400 text-[10px]">
-                        {tx.date.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })} • M-Pesa
+                        {tx.date.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })} • M-Pesa {tx.paymentReceipt && `• ${tx.paymentReceipt}`}
                       </p>
                     </div>
                     <p className="font-bold text-sm flex-shrink-0 text-gray-900">

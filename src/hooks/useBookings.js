@@ -10,7 +10,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getBookingsByUser } from '../services/bookingService';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 export default function useBookings(userId) {
     const [bookings, setBookings] = useState([]);
@@ -23,20 +24,27 @@ export default function useBookings(userId) {
             return;
         }
 
-        async function loadBookings() {
-            try {
-                setLoading(true);
-                setError(null);
-                const data = await getBookingsByUser(userId);
-                setBookings(data);
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        }
+        setLoading(true);
+        setError(null);
 
-        loadBookings();
+        const q = query(collection(db, 'bookings'), where('userId', '==', userId));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Order them locally if needed or just set
+            data.sort((a, b) => {
+                const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+                const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+                return tB - tA; // descending
+            });
+            setBookings(data);
+            setLoading(false);
+        }, (err) => {
+            console.error('Snapshot Error:', err);
+            setError(err.message);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
     }, [userId]);
 
     return { bookings, loading, error, setBookings };

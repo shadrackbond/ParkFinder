@@ -1,10 +1,28 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/common/BottomNav';
 import ProviderNav from '../components/provider/ProviderNav';
 import { updateUserProfile } from '../services/userService';
 import { LogOut, User, Mail, Shield, ChevronRight, Bell, HelpCircle, Settings, Edit3, Image, AlertTriangle, CheckCircle2 } from 'lucide-react';
+
+const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+
+function loadGoogleMapsScript() {
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (window._googleMapsPromise) return window._googleMapsPromise;
+
+    window._googleMapsPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+    return window._googleMapsPromise;
+}
 
 export default function Profile() {
   const { currentUser, userRole, userProfile, logout } = useAuth();
@@ -22,8 +40,47 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  const [suggestions, setSuggestions] = useState([]);
+  const [searchActive, setSearchActive] = useState(false);
+  const autocompleteService = useRef(null);
+
   const isProvider = userRole === 'provider';
   const isAdmin = userRole === 'admin';
+
+  useEffect(() => {
+    if (editing && isProvider) {
+      loadGoogleMapsScript().then(() => {
+        autocompleteService.current = new window.google.maps.places.AutocompleteService();
+      }).catch(() => console.error('Failed to load Google Maps'));
+    }
+  }, [editing, isProvider]);
+
+  useEffect(() => {
+    if (!editData.businessLocation.trim() || !autocompleteService.current || !searchActive) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      autocompleteService.current.getPlacePredictions(
+        { input: editData.businessLocation, componentRestrictions: { country: 'ke' } },
+        (predictions, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+            setSuggestions(predictions || []);
+          } else {
+            setSuggestions([]);
+          }
+        }
+      );
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [editData.businessLocation, searchActive]);
+
+  function handleSelectSuggestion(prediction) {
+    const name = prediction.description;
+    setEditData({ ...editData, businessLocation: name });
+    setSuggestions([]);
+    setSearchActive(false);
+  }
 
   function startEditing() {
     setEditData({
@@ -191,10 +248,30 @@ export default function Profile() {
                         <input type="text" value={editData.businessName} onChange={(e) => setEditData({ ...editData, businessName: e.target.value })}
                           className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm" />
                       </div>
-                      <div>
+                      <div className="relative">
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Business Location</label>
-                        <input type="text" value={editData.businessName} onChange={(e) => setEditData({ ...editData, businessLocation: e.target.value })}
-                          className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm" />
+                        <input type="text" value={editData.businessLocation} 
+                          onChange={(e) => setEditData({ ...editData, businessLocation: e.target.value })}
+                          onFocus={() => setSearchActive(true)}
+                          onBlur={() => setTimeout(() => setSearchActive(false), 200)}
+                          className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm"
+                          placeholder="Search for location..." />
+                        
+                        {suggestions.length > 0 && searchActive && (
+                            <ul className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg z-50 overflow-hidden max-h-48 overflow-y-auto">
+                                {suggestions.map((s) => (
+                                    <li key={s.place_id}>
+                                        <button type="button"
+                                            className="w-full px-4 py-3 text-left hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
+                                            onMouseDown={() => handleSelectSuggestion(s)}
+                                        >
+                                            <p className="text-sm font-medium text-gray-800">{s.structured_formatting?.main_text}</p>
+                                            <p className="text-xs text-gray-400 mt-0.5">{s.structured_formatting?.secondary_text}</p>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>

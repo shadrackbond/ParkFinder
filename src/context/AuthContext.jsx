@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { getUserProfile, createUserProfile } from '../services/userService';
+import { createOrUpdateLot } from '../services/parkingService';
 
 const AuthContext = createContext();
 
@@ -23,15 +24,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   /**
-   * Sign up as a customer. Stores displayName both in Firebase Auth
-   * and Firestore so it's available everywhere.
+   * Sign up as a customer.
    */
   async function signup(email, password, displayName) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const name = displayName || email.split('@')[0];
-    // Set displayName on Firebase Auth profile
     await updateProfile(cred.user, { displayName: name });
-    // Create Firestore profile
     await createUserProfile(cred.user.uid, 'customer', {
       email,
       displayName: name,
@@ -40,12 +38,15 @@ export function AuthProvider({ children }) {
   }
 
   /**
-   * Sign up as a provider — called from ProviderRegister page.
+   * Sign up as a provider — creates user profile + stub parking-lots doc.
+   * The lot doc starts with isActive: false until admin approves.
    */
   async function signupProvider(email, password, providerData) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const name = providerData.contactName || providerData.businessName || email.split('@')[0];
     await updateProfile(cred.user, { displayName: name });
+
+    // 1. Create user profile in `users` collection
     await createUserProfile(cred.user.uid, 'provider', {
       email,
       displayName: name,
@@ -54,6 +55,20 @@ export function AuthProvider({ children }) {
       businessLocation: providerData.businessLocation || '',
       businessImage: providerData.businessImage || '',
     });
+
+    // 2. Create stub lot doc in `parking-lots` collection
+    await createOrUpdateLot(cred.user.uid, {
+      businessName: providerData.businessName || '',
+      businessLocation: providerData.businessLocation || '',
+      businessImage: providerData.businessImage || '',
+      lotImages: providerData.businessImage ? [providerData.businessImage] : [],
+      hourlyRate: 0,
+      capacity: 0,
+      availableSpots: 0,
+      description: '',
+      isActive: false,
+    });
+
     return cred;
   }
 

@@ -5,6 +5,8 @@ import BookingCard from '../components/booking/BookingCard';
 import QRTicket from '../components/booking/QRTicket';
 import useBookings from '../hooks/useBookings';
 import { Calendar, Loader2 } from 'lucide-react';
+import { doc, runTransaction } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 export default function Bookings() {
   const { currentUser } = useAuth();
@@ -15,6 +17,27 @@ export default function Bookings() {
   const filteredBookings = statusFilter === 'all'
     ? bookings
     : bookings.filter((b) => b.status === statusFilter);
+
+  const handleCheckoutEarly = async (booking) => {
+    if (!window.confirm('Are you sure you want to checkout early? This will free your parking spot.')) return;
+    try {
+      await runTransaction(db, async (transaction) => {
+        const lotRef = doc(db, 'parking-lots', booking.lotId);
+        const bookingRef = doc(db, 'bookings', booking.id);
+        
+        const lotDoc = await transaction.get(lotRef);
+        if (lotDoc.exists()) {
+          const data = lotDoc.data();
+          const spots = data.availableSpots !== undefined ? data.availableSpots : data.capacity;
+          transaction.update(lotRef, { availableSpots: spots < (data.capacity || 100) ? spots + 1 : spots });
+        }
+        transaction.update(bookingRef, { status: 'completed' });
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Failed to checkout early');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-safe page-enter">
@@ -29,7 +52,7 @@ export default function Bookings() {
 
         {/* Status Filters */}
         <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-          {['all', 'active', 'completed', 'cancelled'].map((status) => (
+          {['all', 'confirmed', 'active', 'completed', 'cancelled'].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
@@ -64,6 +87,7 @@ export default function Bookings() {
               key={booking.id}
               booking={booking}
               onViewQR={(b) => setSelectedBooking(b)}
+              onCheckoutEarly={handleCheckoutEarly}
             />
           ))
         )}

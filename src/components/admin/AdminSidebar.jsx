@@ -1,4 +1,4 @@
-import { LayoutDashboard, UserCheck, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, UserCheck, Users, LogOut, ParkingCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -11,6 +11,7 @@ export default function AdminSidebar() {
         { name: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
         { name: 'Approvals', icon: UserCheck, path: '/admin/approvals' },
         { name: 'Users', icon: Users, path: '/admin/users' },
+        { name: 'Lots', icon: ParkingCircle, path: '/admin/lots' },
     ];
 
     async function handleLogout() {

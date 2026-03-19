@@ -4,16 +4,18 @@ import { MapPin, Clock, QrCode } from 'lucide-react';
  * BookingCard — A card representing a single booking.
  * Now includes provider image.
  */
-export default function BookingCard({ booking, onViewQR }) {
+export default function BookingCard({ booking, onViewQR, onCheckoutEarly }) {
     const formatTime = (date) => {
         if (!date) return '--:--';
-        const d = date instanceof Date ? date : new Date(date);
+        if (date.seconds) return new Date(date.seconds * 1000).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+        const d = date?.toDate ? date.toDate() : new Date(date);
         return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
     };
 
     const formatDate = (date) => {
         if (!date) return '';
-        const d = date instanceof Date ? date : new Date(date);
+        if (date.seconds) return new Date(date.seconds * 1000).toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
+        const d = date?.toDate ? date.toDate() : new Date(date);
         return d.toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
     };
 
@@ -45,7 +47,7 @@ export default function BookingCard({ booking, onViewQR }) {
                     <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-gray-900 text-sm">{booking.lotName}</h3>
                         <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3 h-3" /> Spot {booking.spotNumber}
+                            <MapPin className="w-3 h-3" /> {booking.location || booking.lotName} • Spot {booking.spotNumber}
                         </p>
                     </div>
                     {!booking.lotImage && (
@@ -63,16 +65,26 @@ export default function BookingCard({ booking, onViewQR }) {
                 <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                     <div>
                         <p className="text-[10px] text-gray-400 uppercase tracking-wider">Total</p>
-                        <p className="text-gray-900 font-bold text-sm">KSh {booking.totalPrice}</p>
+                        <p className="text-gray-900 font-bold text-sm">KSh {booking.amount || 0}</p>
                     </div>
                     {booking.status === 'active' && (
-                        <button
-                            onClick={() => onViewQR?.(booking)}
-                            className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 px-3 py-2 rounded-lg text-xs font-semibold transition"
-                        >
-                            <QrCode className="w-3.5 h-3.5" />
-                            View QR
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => onViewQR?.(booking)}
+                                className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 px-3 py-2 rounded-lg text-xs font-semibold transition"
+                            >
+                                <QrCode className="w-3.5 h-3.5" />
+                                View QR
+                            </button>
+                            {onCheckoutEarly && (
+                                <button
+                                    onClick={() => onCheckoutEarly(booking)}
+                                    className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-lg text-xs font-semibold transition"
+                                >
+                                    Checkout Early
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

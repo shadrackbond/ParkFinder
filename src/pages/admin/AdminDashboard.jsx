@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
 import { getPlatformStats } from '../../services/adminService';
-import { Users, Building2, Calendar, DollarSign, TrendingUp, UserCheck } from 'lucide-react';
+import { Users, Building2, Calendar, DollarSign, TrendingUp, UserCheck, ParkingCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
@@ -16,9 +16,9 @@ export default function AdminDashboard() {
         { label: 'Total Users', value: stats.totalUsers, icon: Users, color: 'bg-blue-50 text-blue-600' },
         { label: 'Total Providers', value: stats.totalProviders, icon: Building2, color: 'bg-teal-50 text-teal-600' },
         { label: 'Pending', value: stats.pendingProviders, icon: UserCheck, color: 'bg-amber-50 text-amber-600' },
+        { label: 'Active Lots', value: stats.activeLots, icon: ParkingCircle, color: 'bg-purple-50 text-purple-600' },
         { label: 'Bookings', value: stats.totalBookings, icon: Calendar, color: 'bg-emerald-50 text-emerald-600' },
         { label: 'Revenue (KSh)', value: stats.revenue?.toLocaleString(), icon: DollarSign, color: 'bg-indigo-50 text-indigo-600' },
-        { label: 'Growth', value: '+12%', icon: TrendingUp, color: 'bg-pink-50 text-pink-600' },
     ] : [];
 
     return (
@@ -39,14 +39,14 @@ export default function AdminDashboard() {
                                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-2 ${stat.color}`}>
                                         <Icon className="w-4 h-4" />
                                     </div>
-                                    <p className="text-xl font-bold text-gray-900">{stat.value}</p>
+                                    <p className="text-xl font-bold text-gray-900">{stat.value ?? '—'}</p>
                                     <p className="text-[10px] text-gray-400 mt-0.5">{stat.label}</p>
                                 </div>
                             );
                         })}
                     </div>
 
-                    <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="grid sm:grid-cols-3 gap-3">
                         <button onClick={() => navigate('/admin/approvals')}
                             className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-card-hover transition text-left group">
                             <div className="flex items-center gap-3">
@@ -71,9 +71,22 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
                         </button>
+                        <button onClick={() => navigate('/admin/lots')}
+                            className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-card-hover transition text-left group">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
+                                    <ParkingCircle className="w-5 h-5 text-purple-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-gray-900 font-semibold text-sm group-hover:text-indigo-600 transition">Manage Lots</h3>
+                                    <p className="text-gray-400 text-xs">{stats?.activeLots || 0} active</p>
+                                </div>
+                            </div>
+                        </button>
                     </div>
                 </div>
             </main>
         </div>
     );
 }
+

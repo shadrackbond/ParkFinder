@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { fetchNearbyLots } from '../services/parkingService';
+import { subscribeToActiveLots } from '../services/parkingService';
 import useParkingStore from '../store/useParkingStore';
 
 export default function useParkingLots(filters = {}) {
@@ -21,25 +21,21 @@ export default function useParkingLots(filters = {}) {
     const { lots, setLots } = useParkingStore();
 
     useEffect(() => {
-        async function loadLots() {
-            try {
-                setLoading(true);
-                setError(null);
-                // Default to Nairobi CBD coordinates
-                const data = await fetchNearbyLots(
-                    filters.lat || -1.2921,
-                    filters.lng || 36.8219,
-                    filters.radius || 5
-                );
+        setLoading(true);
+        setError(null);
+
+        const unsubscribe = subscribeToActiveLots(
+            (data) => {
                 setLots(data);
-            } catch (err) {
-                setError(err.message);
-            } finally {
+                setLoading(false);
+            },
+            (err) => {
+                setError(err.message || 'Failed to load parking lots');
                 setLoading(false);
             }
-        }
+        );
 
-        loadLots();
+        return () => unsubscribe();
     }, [filters.lat, filters.lng, filters.radius]);
 
     return { lots, loading, error };

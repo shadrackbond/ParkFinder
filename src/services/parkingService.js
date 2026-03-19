@@ -27,6 +27,7 @@ import {
     query,
     where,
     getDocs,
+    onSnapshot,
     doc,
     getDoc,
     setDoc,
@@ -38,6 +39,25 @@ import { db } from '../config/firebase';
 
 const LOTS_COLLECTION = 'parking-lots';
 
+function mapLotDoc(d) {
+    const data = d.data();
+    return {
+        id: d.id,
+        providerId: data.providerId,
+        name: data.businessName || 'Unnamed Lot',
+        address: data.businessLocation || 'Nairobi',
+        imageUrl: data.lotImages?.[0] || data.businessImage || '',
+        lotImages: data.lotImages || (data.businessImage ? [data.businessImage] : []),
+        hourlyRate: data.hourlyRate || 100,
+        rating: data.rating || 4.5,
+        availableSpots: data.availableSpots ?? data.capacity ?? 20,
+        capacity: data.capacity || 50,
+        description: data.description || '',
+        openTime: data.openTime || null,
+        closeTime: data.closeTime || null,
+    };
+}
+
 /**
  * Fetch all active (approved) parking lots for the Home page.
  */
@@ -48,26 +68,33 @@ export async function fetchNearbyLots() {
             where('isActive', '==', true)
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map((d) => {
-            const data = d.data();
-            return {
-                id: d.id,                                          // = providerId
-                providerId: data.providerId,
-                name: data.businessName || 'Unnamed Lot',
-                address: data.businessLocation || 'Nairobi',
-                imageUrl: data.lotImages?.[0] || data.businessImage || '',
-                lotImages: data.lotImages || (data.businessImage ? [data.businessImage] : []),
-                hourlyRate: data.hourlyRate || 100,
-                rating: data.rating || 4.5,
-                availableSpots: data.availableSpots ?? data.capacity ?? 20,
-                capacity: data.capacity || 50,
-                description: data.description || '',
-            };
-        });
+        return snapshot.docs.map(mapLotDoc);
     } catch (err) {
         console.error('Failed to fetch lots:', err);
         return [];
     }
+}
+
+/**
+ * Subscribe to active lots so the customer feed updates immediately
+ * when providers edit capacity/details or bookings change availability.
+ */
+export function subscribeToActiveLots(onData, onError) {
+    const q = query(
+        collection(db, LOTS_COLLECTION),
+        where('isActive', '==', true)
+    );
+
+    return onSnapshot(
+        q,
+        (snapshot) => {
+            onData(snapshot.docs.map(mapLotDoc));
+        },
+        (err) => {
+            console.error('Failed to subscribe to lots:', err);
+            if (onError) onError(err);
+        }
+    );
 }
 
 /**
@@ -114,9 +141,17 @@ export async function createOrUpdateLot(providerId, lotData) {
         const snap = await getDoc(ref);
 
         if (snap.exists()) {
+            const existing = snap.data();
+            const oldCapacity = Number(existing.capacity) || 0;
+            const oldAvailable = existing.availableSpots ?? oldCapacity;
+            const occupied = Math.max(oldCapacity - oldAvailable, 0);
+            const nextCapacity = Number(lotData.capacity) || 0;
+            const nextAvailable = Math.max(nextCapacity - occupied, 0);
+
             await updateDoc(ref, {
                 ...lotData,
                 providerId,
+                availableSpots: nextAvailable,
                 updatedAt: serverTimestamp(),
             });
         } else {

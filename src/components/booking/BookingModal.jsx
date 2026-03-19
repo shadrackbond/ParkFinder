@@ -58,7 +58,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
     const handleBooking = async (e) => {
         e.preventDefault();
         setError('');
-        
+
         if (!phone.startsWith('254') || phone.length < 12) {
             setError('Please enter a valid phone number starting with 254');
             return;
@@ -74,19 +74,19 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
         }
 
         // Time Guard
-        if (lot.openingTime && lot.closingTime) {
+        if (lot.openTime && lot.closeTime) {
             const now = new Date();
             const currentHour = now.getHours();
             const currentMin = now.getMinutes();
             const currentTime = currentHour + currentMin / 60;
 
-            const [openH, openM] = lot.openingTime.split(':').map(Number);
-            const [closeH, closeM] = lot.closingTime.split(':').map(Number);
+            const [openH, openM] = lot.openTime.split(':').map(Number);
+            const [closeH, closeM] = lot.closeTime.split(':').map(Number);
             const openTime = openH + (openM || 0) / 60;
             const closeTime = closeH + (closeM || 0) / 60;
 
             if (currentTime < openTime || currentTime > closeTime) {
-                setError(`Parking lot is closed. Operating hours are ${lot.openingTime} to ${lot.closingTime}.`);
+                setError(`Parking lot is closed. Operating hours are ${lot.openTime} to ${lot.closeTime}.`);
                 return;
             }
         }
@@ -100,10 +100,10 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             const activeDate = new Date();
             const [sh, sm] = startTime.split(':').map(Number);
             const [eh, em] = endTime.split(':').map(Number);
-            
+
             const startBookingDate = new Date(activeDate);
             startBookingDate.setHours(sh, sm, 0, 0);
-            
+
             const endBookingDate = new Date(activeDate);
             endBookingDate.setHours(eh, em, 0, 0);
             if (endBookingDate < startBookingDate) {
@@ -114,7 +114,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             const bookingsRef = collection(db, 'bookings');
             const userBookingsQuery = query(bookingsRef, where('userId', '==', currentUser.uid), where('status', '==', 'confirmed'));
             const userBookingsSnap = await getDocs(userBookingsQuery);
-            
+
             let hasActiveUserBooking = false;
             userBookingsSnap.forEach(docSnap => {
                 const b = docSnap.data();
@@ -133,13 +133,13 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             // Booking Availability Override Guard
             const overlapQuery = query(bookingsRef, where('lotId', '==', lot.id), where('status', '==', 'confirmed'));
             const overlapSnapshot = await getDocs(overlapQuery);
-            
+
             let isOverlapping = false;
             overlapSnapshot.forEach(docSnap => {
                 const b = docSnap.data();
                 const bStart = b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime);
                 const bEnd = b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime);
-                
+
                 if (startBookingDate < bEnd && endBookingDate > bStart) {
                     isOverlapping = true;
                 }
@@ -171,7 +171,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                 // Soft-Lock: Create a 'reserved-pending' booking
                 const newBookingRef = doc(collection(db, 'bookings'));
                 temporaryBookingId = newBookingRef.id;
-                
+
                 // Use the dates we evaluated prior to transaction
 
                 transaction.set(newBookingRef, {
@@ -210,6 +210,40 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
 
         } catch (err) {
             console.error(err);
+
+            // If STK initiation failed before callback processing, release soft lock.
+            if (temporaryBookingId) {
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const bookingRef = doc(db, 'bookings', temporaryBookingId);
+                        const lotRef = doc(db, 'parking-lots', lot.id);
+
+                        const bookingDoc = await transaction.get(bookingRef);
+                        const lotDoc = await transaction.get(lotRef);
+
+                        if (bookingDoc.exists() && bookingDoc.data().status === 'reserved-pending') {
+                            transaction.update(bookingRef, {
+                                status: 'payment-failed',
+                                failureReason: err.message || 'STK initiation failed',
+                                updatedAt: serverTimestamp(),
+                            });
+
+                            if (lotDoc.exists()) {
+                                const lotData = lotDoc.data();
+                                const capacity = Number(lotData.capacity) || 0;
+                                const currentSpots = lotData.availableSpots !== undefined ? Number(lotData.availableSpots) : capacity;
+                                const nextSpots = capacity > 0 ? Math.min(capacity, currentSpots + 1) : currentSpots + 1;
+                                transaction.update(lotRef, {
+                                    availableSpots: nextSpots,
+                                });
+                            }
+                        }
+                    });
+                } catch (rollbackErr) {
+                    console.error('Failed to rollback pending booking:', rollbackErr);
+                }
+            }
+
             setError(err.message || 'An error occurred during booking.');
             setLoading(false);
         }
@@ -247,18 +281,18 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                 </label>
                 <div className="flex items-center justify-between gap-1">
                     <div className="flex-1 relative">
-                        <select 
+                        <select
                             value={hm} onChange={(e) => handleHour(e.target.value)}
                             className="w-full bg-white border border-gray-200 text-gray-900 rounded-lg pl-2 pr-1 py-2 text-sm font-extrabold shadow-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100 appearance-none text-center"
                         >
                             {[...Array(12)].map((_, i) => (
-                                <option key={i+1} value={i+1}>{i+1}</option>
+                                <option key={i + 1} value={i + 1}>{i + 1}</option>
                             ))}
                         </select>
                     </div>
                     <span className="text-gray-300 font-bold">:</span>
                     <div className="flex-1 relative">
-                        <select 
+                        <select
                             value={minStr} onChange={(e) => handleMin(e.target.value)}
                             className="w-full bg-white border border-gray-200 text-gray-900 rounded-lg pl-2 pr-1 py-2 text-sm font-extrabold shadow-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100 appearance-none text-center"
                         >
@@ -268,7 +302,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                         </select>
                     </div>
                     <div className="flex-1 relative">
-                        <select 
+                        <select
                             value={ampm} onChange={(e) => handlePeriod(e.target.value)}
                             className="w-full bg-gray-100 border border-gray-200 text-teal-700 rounded-lg pl-2 pr-1 py-2 text-[10px] font-extrabold shadow-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100 appearance-none text-center"
                         >
@@ -315,7 +349,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                                 required
                             />
                         </div>
-                        
+
                         <div>
                             <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase">
                                 Plate Number
@@ -342,7 +376,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                             <TimePicker label="Start Time" value24={startTime} onChange24={setStartTime} />
                             <TimePicker label="End Time" value24={endTime} onChange24={setEndTime} />
                         </div>
-                        
+
                         {durationMins > 0 ? (
                             <div className="flex items-center justify-between px-1 -mt-1">
                                 <span className="text-[11px] font-semibold text-gray-400 uppercase">Duration</span>
@@ -363,7 +397,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                             <span className="text-teal-900 font-semibold text-sm">Total Amount</span>
                             <span className="text-lg font-bold text-teal-700">KSh {amount}</span>
                         </div>
-                        
+
                         <div className="flex items-start gap-2 text-xs text-gray-500">
                             <ShieldCheck className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                             <p>Spot will be reserved for 5 minutes during payment processing to prevent double-booking.</p>

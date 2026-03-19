@@ -15,7 +15,7 @@ router.post('/stkpush', async (req, res) => {
         const { phone, amount, accountReference, transactionDesc } = req.body;
 
         const token = await tokenSingleton.getToken();
-        
+
         const shortcode = process.env.MPESA_SHORTCODE;
         const passkey = process.env.MPESA_PASSKEY;
         const timestamp = getTimestamp();
@@ -29,10 +29,10 @@ router.post('/stkpush', async (req, res) => {
             Timestamp: timestamp,
             TransactionType: 'CustomerPayBillOnline',
             Amount: amount,
-            PartyA: phone, 
+            PartyA: phone,
             PartyB: shortcode,
             PhoneNumber: phone,
-            CallBackURL: callbackUrl, 
+            CallBackURL: callbackUrl,
             AccountReference: accountReference || 'ParkEase',
             TransactionDesc: transactionDesc || 'Parking Payment'
         };
@@ -71,7 +71,7 @@ router.post('/callback', async (req, res) => {
 
         const resultCode = callbackData.ResultCode;
         const checkoutRequestId = callbackData.CheckoutRequestID;
-        
+
         const db = admin.firestore();
         const bookingsRef = db.collection('bookings');
         const q = bookingsRef.where('checkoutRequestId', '==', checkoutRequestId);
@@ -82,7 +82,7 @@ router.post('/callback', async (req, res) => {
             const metadataItem = callbackData.CallbackMetadata?.Item;
             const receiptItem = metadataItem?.find(item => item.Name === 'MpesaReceiptNumber');
             const receipt = receiptItem ? receiptItem.Value : 'N/A';
-            
+
             if (!snapshot.empty) {
                 const batch = db.batch();
                 snapshot.docs.forEach((doc) => {
@@ -97,15 +97,33 @@ router.post('/callback', async (req, res) => {
         } else {
             // Failed
             if (!snapshot.empty) {
-                const batch = db.batch();
-                snapshot.docs.forEach((doc) => {
-                    batch.update(doc.ref, {
-                        status: 'payment-failed',
-                        failureReason: callbackData.ResultDesc,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                for (const bookingDoc of snapshot.docs) {
+                    const bookingData = bookingDoc.data();
+                    const lotId = bookingData.lotId;
+
+                    await db.runTransaction(async (tx) => {
+                        const lotRef = db.collection('parking-lots').doc(lotId);
+                        const lotSnap = await tx.get(lotRef);
+
+                        tx.update(bookingDoc.ref, {
+                            status: 'payment-failed',
+                            failureReason: callbackData.ResultDesc,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+
+                        if (lotSnap.exists) {
+                            const lot = lotSnap.data() || {};
+                            const capacity = Number(lot.capacity) || 0;
+                            const currentSpots = lot.availableSpots !== undefined ? Number(lot.availableSpots) : capacity;
+                            const nextSpots = capacity > 0 ? Math.min(capacity, currentSpots + 1) : currentSpots + 1;
+
+                            tx.update(lotRef, {
+                                availableSpots: nextSpots,
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
                     });
-                });
-                await batch.commit();
+                }
             }
         }
 

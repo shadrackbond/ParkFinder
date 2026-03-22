@@ -41,7 +41,7 @@ export default function ProviderDashboard() {
 
     const hasLotSetup = lot && lot.capacity > 0 && lot.hourlyRate > 0;
 
-    const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'active');
+    const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'active' || b.status === 'checked-in');
     const revenue = bookings
         .filter(b => b.status === 'confirmed' || b.status === 'completed')
         .reduce((sum, b) => sum + (b.amount || 0), 0);

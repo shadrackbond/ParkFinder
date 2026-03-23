@@ -33,18 +33,16 @@ import { db } from '../config/firebase';
 const BOOKINGS = 'bookings';
 
 /** Statuses that are eligible to be scanned. */
-const SCANNABLE_STATUSES = new Set(['active', 'confirmed', 'checked-in']);
+const SCANNABLE_STATUSES = new Set(['confirmed', 'checked-in']);
 
 /** Maps current status → next status on scan. */
 const STATUS_TRANSITION = {
-    active: 'checked-in',
     confirmed: 'checked-in',
     'checked-in': 'completed',
 };
 
 /** Human-readable action label per transition. */
 const ACTION_LABEL = {
-    active: 'check-in',
     confirmed: 'check-in',
     'checked-in': 'check-out',
 };

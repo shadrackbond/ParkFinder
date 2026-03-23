@@ -147,7 +147,7 @@ export async function createOrUpdateLot(providerId, lotData) {
             const bookingsSnap = await getDocs(
                 query(collection(db, 'bookings'), where('lotId', '==', providerId))
             );
-            const activeStatuses = new Set(['reserved-pending', 'confirmed', 'active']);
+            const activeStatuses = new Set(['reserved-pending', 'confirmed', 'checked-in']);
             const occupiedByBookings = bookingsSnap.docs.reduce((count, bookingDoc) => {
                 const status = bookingDoc.data()?.status;
                 return activeStatuses.has(status) ? count + 1 : count;

@@ -19,6 +19,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ApprovalQueue from './pages/admin/ApprovalQueue';
 import UserManager from './pages/admin/UserManager';
 import LotsList from './pages/admin/LotsList';
+import Analytics from './pages/admin/Analytics';
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth();
@@ -60,6 +61,7 @@ function App() {
             <Route path="/admin/approvals" element={<RoleRoute allowedRoles={['admin']}><ApprovalQueue /></RoleRoute>} />
             <Route path="/admin/users" element={<RoleRoute allowedRoles={['admin']}><UserManager /></RoleRoute>} />
             <Route path="/admin/lots" element={<RoleRoute allowedRoles={['admin']}><LotsList /></RoleRoute>} />
+            <Route path="/admin/analytics" element={<RoleRoute allowedRoles={['admin']}><Analytics /></RoleRoute>} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

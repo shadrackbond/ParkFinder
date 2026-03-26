@@ -17,7 +17,7 @@ export async function createBooking(bookingData) {
     try {
         const ref = await addDoc(collection(db, 'bookings'), {
             ...bookingData,
-            status: 'active',
+            status: 'confirmed',
             paymentStatus: 'pending',
             qrCode: `PE-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
             createdAt: serverTimestamp(),

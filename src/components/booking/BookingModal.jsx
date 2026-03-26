@@ -184,11 +184,30 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                     endTime: endBookingDate,
                     amount,
                     status: 'reserved-pending',
+                    qrCode: `PE-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
                     expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes soft-lock
                     createdAt: serverTimestamp(),
                     location: lot.location || lot.name
                 });
             });
+
+            // DEV BYPASS: If localhost, fake the M-Pesa push and auto-confirm
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                console.warn('[DEV] Bypassing M-Pesa STK push for local testing');
+                await runTransaction(db, async (transaction) => {
+                    const bookingRef = doc(db, 'bookings', temporaryBookingId);
+                    transaction.update(bookingRef, {
+                        status: 'confirmed',
+                        paymentReceipt: 'DEV-TEST-123',
+                        updatedAt: serverTimestamp()
+                    });
+                });
+                
+                setLoading(false);
+                if (onSuccess) onSuccess();
+                onClose();
+                return;
+            }
 
             // Trigger M-Pesa STK Push
             const response = await axios.post('https://parkfinder-hwy4.onrender.com/api/mpesa/stkpush', {

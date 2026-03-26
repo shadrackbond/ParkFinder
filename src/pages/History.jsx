@@ -10,10 +10,10 @@ export default function History() {
 
   // Derive transactions from bookings
   const transactions = bookings
-    .filter((b) => b.status === 'completed' || b.status === 'active')
+    .filter((b) => b.status === 'completed' || b.status === 'checked-in')
     .map((b) => ({
       id: b.id,
-      type: b.status === 'completed' ? 'completed' : 'active',
+      type: b.status === 'completed' ? 'completed' : 'checked-in',
       amount: b.amount || 0,
       description: `${b.lotName || 'Parking'} — ${b.plateNumber || 'N/A'}`,
       date: b.startTime?.seconds ? new Date(b.startTime.seconds * 1000) : (b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime || Date.now())),

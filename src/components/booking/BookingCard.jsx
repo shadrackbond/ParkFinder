@@ -67,7 +67,7 @@ export default function BookingCard({ booking, onViewQR, onCheckoutEarly }) {
                         <p className="text-[10px] text-gray-400 uppercase tracking-wider">Total</p>
                         <p className="text-gray-900 font-bold text-sm">KSh {booking.amount || 0}</p>
                     </div>
-                    {booking.status === 'active' && (
+                    {['active', 'confirmed', 'checked-in'].includes(booking.status) && (
                         <div className="flex gap-2">
                             <button
                                 onClick={() => onViewQR?.(booking)}

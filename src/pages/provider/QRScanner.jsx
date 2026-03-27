@@ -43,7 +43,9 @@ const QR_BOX_SIZE        = 250;
 const SCANNER_CONFIG = {
     fps: 10,
     qrbox: { width: QR_BOX_SIZE, height: QR_BOX_SIZE },
-    aspectRatio: 1.0,
+    // NOTE: aspectRatio removed — forcing 1.0 causes blank video on many
+    // mobile browsers (Android Chrome / iOS Safari) because the browser
+    // cannot satisfy the constraint and returns an empty stream.
     showTorchButtonIfSupported: false, // we manage torch ourselves
     experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     rememberLastUsedCamera: false,
@@ -241,6 +243,7 @@ export default function QRScanner() {
     const [cameras, setCameras]             = useState([]);
     const [selectedCameraId, setSelectedCameraId] = useState(null);
     const [scannerActive, setScannerActive] = useState(false);
+    const [scannerStarting, setScannerStarting] = useState(false); // true while start() is in flight
     const [torchOn, setTorchOn]             = useState(false);
     const [torchSupported, setTorchSupported] = useState(false);
     const [cameraError, setCameraError]     = useState(null);
@@ -308,11 +311,13 @@ export default function QRScanner() {
         setTorchOn(false);
         setTorchSupported(false);
         setScannerActive(false);
+        setScannerStarting(false);
     }, []);
 
     const startScanner = useCallback(async () => {
         setCameraError(null);
         setScanResult(null);
+        setScannerStarting(true); // keep viewport visible during async start
 
         // Instantiate if needed.
         if (!scannerRef.current) {
@@ -332,6 +337,7 @@ export default function QRScanner() {
             );
 
             setScannerActive(true);
+            setScannerStarting(false);
 
             // Detect torch support.
             try {
@@ -353,6 +359,7 @@ export default function QRScanner() {
             console.error('[QRScanner] Start error:', err);
             scannerRef.current = null;
             setScannerActive(false);
+            setScannerStarting(false);
 
             if (
                 err?.name === 'NotAllowedError' ||
@@ -514,15 +521,35 @@ export default function QRScanner() {
                     {/* ── Scanner Viewport ── */}
                     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
                         <div className="relative bg-gray-900">
-                            {/* html5-qrcode mounts into this div */}
+                            {/*
+                             * IMPORTANT: This div must always be in the DOM and
+                             * must NEVER be display:none while the scanner is
+                             * starting or running. html5-qrcode injects a <video>
+                             * element here *before* setScannerActive(true) fires,
+                             * so hiding it with display:none / 'hidden' collapses
+                             * the video to 0×0 and produces a blank camera feed
+                             * on mobile. We use minHeight to ensure the element
+                             * has physical dimensions at all times.
+                             */}
                             <div
                                 id={SCANNER_ELEMENT_ID}
-                                className={scannerActive ? 'block' : 'hidden'}
-                                style={{ width: '100%' }}
+                                style={{
+                                    width: '100%',
+                                    minHeight: (scannerActive || scannerStarting) ? '300px' : '0px',
+                                    display: (scannerActive || scannerStarting) ? 'block' : 'none',
+                                }}
                             />
 
-                            {/* Placeholder when scanner is off */}
-                            {!scannerActive && (
+                            {/* Starting-camera spinner */}
+                            {scannerStarting && !scannerActive && (
+                                <div className="flex flex-col items-center justify-center py-14 gap-3">
+                                    <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
+                                    <p className="text-gray-400 text-xs">Starting camera…</p>
+                                </div>
+                            )}
+
+                            {/* Placeholder when scanner is fully off */}
+                            {!scannerActive && !scannerStarting && (
                                 <div className="flex flex-col items-center justify-center py-14 gap-4">
                                     <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center">
                                         <Camera className="w-8 h-8 text-gray-500" />

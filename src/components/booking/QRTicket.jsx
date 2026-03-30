@@ -1,35 +1,47 @@
 import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { Clock, X } from 'lucide-react';
+import { Clock, MapPin, X } from 'lucide-react';
 
 export default function QRTicket({ booking, onClose }) {
     const canvasRef = useRef(null);
 
     if (!booking) return null;
 
-    const qrValue = booking.qrCode || booking.id || 'PARKEASE-TICKET';
+    // QR value MUST be the raw Firestore doc ID — nothing else.
+    const qrValue = booking.id;
 
-    const formatTime = (date) => {
-        if (!date) return '--:--';
+    // ── Formatters (handle both plain "HH:MM" strings and Firestore Timestamps) ──
+
+    const formatTime = (val) => {
+        if (!val) return '--:--';
         try {
-            if (date.seconds) return new Date(date.seconds * 1000).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
-            const d = date?.toDate ? date.toDate() : new Date(date);
+            // Plain "HH:MM" string (new format)
+            if (typeof val === 'string' && /^\d{2}:\d{2}$/.test(val)) return val;
+            // Firestore Timestamp
+            if (val.seconds) return new Date(val.seconds * 1000).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+            const d = val?.toDate ? val.toDate() : new Date(val);
             return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
         } catch { return '--:--'; }
     };
 
-    const formatDate = (date) => {
-        if (!date) return '';
+    const formatDate = (val) => {
+        if (!val) return '';
         try {
-            if (date.seconds) return new Date(date.seconds * 1000).toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
-            const d = date?.toDate ? date.toDate() : new Date(date);
+            // Plain "YYYY-MM-DD" string (new format)
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                const d = new Date(val + 'T00:00:00');
+                return d.toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
+            }
+            // Firestore Timestamp
+            if (val.seconds) return new Date(val.seconds * 1000).toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
+            const d = val?.toDate ? val.toDate() : new Date(val);
             return d.toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
         } catch { return ''; }
     };
 
-    // Generate QR code to canvas on mount
+    // Generate QR code on mount
     useEffect(() => {
-        if (canvasRef.current) {
+        if (canvasRef.current && qrValue) {
             QRCode.toCanvas(canvasRef.current, qrValue, {
                 width: 180,
                 margin: 2,
@@ -38,6 +50,12 @@ export default function QRTicket({ booking, onClose }) {
             }).catch(console.error);
         }
     }, [qrValue]);
+
+    // Determine date/time display — new schema uses plain strings
+    const dateDisplay = booking.date ? formatDate(booking.date) : formatDate(booking.startTime);
+    const timeDisplay = booking.startTime && booking.endTime
+        ? `${formatTime(booking.startTime)} – ${formatTime(booking.endTime)}`
+        : '--:-- – --:--';
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -62,7 +80,7 @@ export default function QRTicket({ booking, onClose }) {
                     </div>
                 </div>
 
-                {/* QR string */}
+                {/* QR string (raw doc ID) */}
                 <p className="text-center text-[11px] text-gray-400 font-mono pb-1 px-4 truncate">{qrValue}</p>
 
                 {/* Divider */}
@@ -70,10 +88,13 @@ export default function QRTicket({ booking, onClose }) {
 
                 {/* Details */}
                 <div className="px-5 pb-5 pt-2 space-y-3">
+                    {/* Spot + Status + Amount */}
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-[10px] text-gray-400 uppercase tracking-wider">Spot</p>
-                            <p className="text-gray-900 font-bold text-lg">{booking.spotNumber || 'N/A'}</p>
+                            <p className="text-gray-900 font-bold text-2xl">
+                                #{booking.spotNumber ?? 'N/A'}
+                            </p>
                         </div>
                         <div className="text-right">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wider">Status</p>
@@ -87,10 +108,19 @@ export default function QRTicket({ booking, onClose }) {
                         </div>
                     </div>
 
+                    {/* Date + Time */}
                     <div className="flex items-center gap-1.5 text-gray-500 text-xs">
                         <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>{formatDate(booking.startTime)} • {formatTime(booking.startTime)} – {formatTime(booking.endTime)}</span>
+                        <span>{dateDisplay} • {timeDisplay}</span>
                     </div>
+
+                    {/* Location */}
+                    {booking.location && (
+                        <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+                            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{booking.location}</span>
+                        </div>
+                    )}
 
                     <p className="text-center text-gray-400 text-xs pt-1 border-t border-gray-50">
                         📱 Show this QR code to the parking attendant

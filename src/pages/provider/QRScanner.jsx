@@ -1,16 +1,13 @@
 /**
  * QRScanner.jsx — Provider QR Code Scanner Page
  *
- * Features:
- *  - Live camera scanning via html5-qrcode (rear camera preferred)
- *  - Camera selector dropdown (if multiple cameras available)
- *  - Torch / flashlight toggle (gracefully degraded)
- *  - Manual QR code entry fallback
- *  - Scan cooldown (2.5 s) to debounce rapid / duplicate scans
- *  - Audio feedback via Web AudioContext (no external assets)
- *  - Haptic feedback via navigator.vibrate() (feature-detected)
- *  - Session-only scan history (last 10 scans)
- *  - Proper scanner cleanup on unmount to prevent memory leaks
+ * Camera / hardware infrastructure: html5-qrcode (kept from original).
+ * Validation logic: fully rewritten per RULE ZERO spec.
+ *
+ * Scan flow:
+ *   Step 1 — Decode: fetch booking by scanned ID, validate state.
+ *   Step 2 — Overcharge: if user is late, collect extra charge via M-Pesa.
+ *   Step 3 — Checkout: releaseSpot + mark booking completed.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -28,10 +25,23 @@ import {
     AlertTriangle,
     Clock,
     StopCircle,
+    DollarSign,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import ProviderNav from '../../components/provider/ProviderNav';
-import { validateQRCode } from '../../services/qrService';
+import { db } from '../../config/firebase';
+import {
+    doc,
+    getDoc,
+    getDocs,
+    collection,
+    query,
+    where,
+    updateDoc,
+    serverTimestamp,
+} from 'firebase/firestore';
+import { releaseSpot } from '../../services/spotService';
+import axios from 'axios';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -39,33 +49,26 @@ const SCANNER_ELEMENT_ID = 'qr-reader-viewport';
 const SCAN_COOLDOWN_MS   = 2500;
 const MAX_HISTORY_ITEMS  = 10;
 const QR_BOX_SIZE        = 250;
+const OVERCHARGE_GRACE_MINUTES = 5;
+const OVERCHARGE_POLL_INTERVAL_MS = 5000;
 
 const SCANNER_CONFIG = {
     fps: 10,
     qrbox: { width: QR_BOX_SIZE, height: QR_BOX_SIZE },
-    // NOTE: aspectRatio removed — forcing 1.0 causes blank video on many
-    // mobile browsers (Android Chrome / iOS Safari) because the browser
-    // cannot satisfy the constraint and returns an empty stream.
-    showTorchButtonIfSupported: false, // we manage torch ourselves
+    showTorchButtonIfSupported: false,
     experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     rememberLastUsedCamera: false,
 };
 
-// ─── Audio Helpers ────────────────────────────────────────────────────────────
+// ─── Audio / Haptics ──────────────────────────────────────────────────────────
 
-/**
- * Play a short tone using the Web AudioContext API.
- * @param {'success'|'error'} tone
- */
 function playTone(tone) {
     try {
         const ctx  = new (window.AudioContext || window.webkitAudioContext)();
         const osc  = ctx.createOscillator();
         const gain = ctx.createGain();
-
         osc.connect(gain);
         gain.connect(ctx.destination);
-
         if (tone === 'success') {
             osc.frequency.setValueAtTime(880, ctx.currentTime);
             osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
@@ -77,158 +80,76 @@ function playTone(tone) {
             gain.gain.setValueAtTime(0.3, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
         }
-
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.5);
         osc.onended = () => ctx.close();
-    } catch {
-        // AudioContext not supported — fail silently.
-    }
+    } catch { /* AudioContext not supported */ }
 }
 
-/**
- * Trigger device vibration if available.
- * @param {'success'|'error'} type
- */
 function vibrate(type) {
     if (!navigator.vibrate) return;
     navigator.vibrate(type === 'success' ? [80, 40, 80] : [200]);
 }
 
-// ─── Result Card Component ────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function ResultCard({ result, onScanAnother }) {
-    if (!result) return null;
+/**
+ * Determine the absolute Date object for when the booking ends.
+ * Handles old schemas (Timestamps) and new schema (plain strings),
+ * including cross-midnight logic where endTime < startTime pushes to +1 day.
+ */
+function getEndTimeDate(booking) {
+    if (!booking.endTime) return new Date();
+    
+    // Old schema: Firestore Timestamp or raw Date
+    if (booking.endTime.seconds) return new Date(booking.endTime.seconds * 1000);
+    if (booking.endTime.toDate) return booking.endTime.toDate();
+    
+    // New schema: string format "HH:MM"
+    if (typeof booking.endTime === 'string' && booking.date) {
+        const [year, month, day] = booking.date.split('-').map(Number);
+        const endDate = new Date(year, month - 1, day);
+        
+        const [startH, startM] = (booking.startTime || '00:00').split(':').map(Number);
+        const [endH, endM] = booking.endTime.split(':').map(Number);
+        
+        const startMins = startH * 60 + startM;
+        const endMins = endH * 60 + endM;
+        
+        // If it crosses midnight, end time is on the following day
+        if (endMins <= startMins && booking.endTime !== booking.startTime) {
+            endDate.setDate(endDate.getDate() + 1);
+        }
+        
+        endDate.setHours(endH, endM, 0, 0);
+        return endDate;
+    }
 
-    const isSuccess = result.success;
-    const isCheckIn = result.type === 'check-in';
-
-    return (
-        <div
-            className={`rounded-2xl p-4 mb-5 border ${
-                isSuccess
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-red-50 border-red-200'
-            }`}
-        >
-            <div className="flex items-start gap-3">
-                <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isSuccess ? 'bg-emerald-100' : 'bg-red-100'
-                    }`}
-                >
-                    {isSuccess ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    ) : (
-                        <XCircle className="w-5 h-5 text-red-600" />
-                    )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                    <h3
-                        className={`font-bold text-sm mb-0.5 ${
-                            isSuccess ? 'text-emerald-800' : 'text-red-800'
-                        }`}
-                    >
-                        {isSuccess
-                            ? isCheckIn
-                                ? '✓ Check-In Successful'
-                                : '✓ Check-Out Successful'
-                            : '✗ Validation Failed'}
-                    </h3>
-
-                    <p
-                        className={`text-xs ${
-                            isSuccess ? 'text-emerald-700' : 'text-red-700'
-                        }`}
-                    >
-                        {result.message}
-                    </p>
-
-                    {isSuccess && result.booking && (
-                        <div className="mt-3 bg-white/70 rounded-xl p-3 space-y-1.5 text-xs text-gray-700">
-                            <p>
-                                <span className="text-gray-400 font-medium">Booking ID: </span>
-                                <span className="font-mono">{result.booking.id}</span>
-                            </p>
-                            {result.booking.plateNumber && (
-                                <p>
-                                    <span className="text-gray-400 font-medium">Plate: </span>
-                                    {result.booking.plateNumber}
-                                </p>
-                            )}
-                            <p>
-                                <span className="text-gray-400 font-medium">Status: </span>
-                                <span
-                                    className={
-                                        result.booking.status === 'completed'
-                                            ? 'text-gray-500 font-semibold'
-                                            : 'text-teal-600 font-semibold'
-                                    }
-                                >
-                                    {result.booking.status}
-                                </span>
-                            </p>
-                            <p>
-                                <span className="text-gray-400 font-medium">Action: </span>
-                                <span className="font-semibold capitalize">
-                                    {result.type}
-                                </span>
-                            </p>
-                        </div>
-                    )}
-
-                    {!isSuccess && result.booking?.id && (
-                        <p className="mt-2 text-xs text-gray-500 font-mono">
-                            Booking: {result.booking.id}
-                        </p>
-                    )}
-                </div>
-            </div>
-
-            <button
-                onClick={onScanAnother}
-                className="mt-3 flex items-center gap-1.5 text-gray-500 text-xs font-medium hover:text-gray-700 transition"
-            >
-                <RefreshCw className="w-3 h-3" />
-                Scan Another
-            </button>
-        </div>
-    );
+    // Fallback
+    const [h, m] = (booking.endTime || '00:00').split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d;
 }
 
-// ─── Scan History Item ────────────────────────────────────────────────────────
+// ─── History Item ─────────────────────────────────────────────────────────────
 
 function HistoryItem({ item }) {
     return (
         <div className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
-            <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    item.success ? 'bg-emerald-100' : 'bg-red-100'
-                }`}
-            >
-                {item.success ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                ) : (
-                    <XCircle className="w-3.5 h-3.5 text-red-600" />
-                )}
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${item.success ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                {item.success
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    : <XCircle className="w-3.5 h-3.5 text-red-600" />}
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-gray-800 truncate">
                     {item.bookingId || item.qrSnippet || 'Unknown'}
                 </p>
-                <p className="text-[10px] text-gray-400">
-                    {item.action ? `${item.action} · ` : ''}{item.time}
-                </p>
+                <p className="text-[10px] text-gray-400">{item.time}</p>
             </div>
-            <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    item.success
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-red-100 text-red-700'
-                }`}
-            >
-                {item.success ? item.type?.replace('-', ' ') || 'OK' : 'Error'}
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                {item.success ? 'Check-out' : 'Error'}
             </span>
         </div>
     );
@@ -239,73 +160,69 @@ function HistoryItem({ item }) {
 export default function QRScanner() {
     const { currentUser } = useAuth();
 
-    // Camera & scanner state
-    const [cameras, setCameras]             = useState([]);
+    // Camera state
+    const [cameras, setCameras]                   = useState([]);
     const [selectedCameraId, setSelectedCameraId] = useState(null);
-    const [scannerActive, setScannerActive] = useState(false);
-    const [scannerStarting, setScannerStarting] = useState(false); // true while start() is in flight
-    const [torchOn, setTorchOn]             = useState(false);
-    const [torchSupported, setTorchSupported] = useState(false);
-    const [cameraError, setCameraError]     = useState(null);
+    const [scannerActive, setScannerActive]       = useState(false);
+    const [scannerStarting, setScannerStarting]   = useState(false);
+    const [torchOn, setTorchOn]                   = useState(false);
+    const [torchSupported, setTorchSupported]     = useState(false);
+    const [cameraError, setCameraError]           = useState(null);
 
-    // Validation state
-    const [validating, setValidating]       = useState(false);
-    const [scanResult, setScanResult]       = useState(null);
+    // Validation / result state
+    const [validating, setValidating]             = useState(false);
+    const [scanResult, setScanResult]             = useState(null); // { success, message, bookingId }
+
+    // Overcharge state
+    const [overchargeInfo, setOverchargeInfo]     = useState(null);
+    // { bookingId, booking, extraMinutes, extraCharge, phone, paid }
+    const [sendingMpesa, setSendingMpesa]         = useState(false);
+    const [mpesaSent, setMpesaSent]               = useState(false);
 
     // Manual entry
-    const [manualCode, setManualCode]       = useState('');
+    const [manualCode, setManualCode]             = useState('');
 
     // Session history
-    const [scanHistory, setScanHistory]     = useState([]);
+    const [scanHistory, setScanHistory]           = useState([]);
 
     // Refs
-    const scannerRef      = useRef(null);  // Html5Qrcode instance
-    const isProcessingRef = useRef(false); // debounce gate
+    const scannerRef      = useRef(null);
+    const isProcessingRef = useRef(false);
     const cooldownTimer   = useRef(null);
+    const pollIntervalRef = useRef(null);
 
-    // ── Camera list on mount ────────────────────────────────────────────────
+    // ── Cleanup on unmount ──────────────────────────────────────────────────
 
     useEffect(() => {
         Html5Qrcode.getCameras()
             .then((devices) => {
                 if (devices && devices.length > 0) {
                     setCameras(devices);
-                    // Prefer back/environment camera.
-                    const back = devices.find(
-                        (d) =>
-                            /back|rear|environment/i.test(d.label)
-                    );
+                    const back = devices.find((d) => /back|rear|environment/i.test(d.label));
                     setSelectedCameraId(back ? back.id : devices[0].id);
                 } else {
                     setCameraError('No cameras detected on this device.');
                 }
             })
-            .catch((err) => {
-                console.warn('[QRScanner] getCameras error:', err);
-                // May happen before permission is granted — set a placeholder so
-                // the user can still click Start and grant permission then.
-                setCameras([]);
-            });
+            .catch(() => setCameras([]));
 
         return () => {
             stopScanner();
             clearTimeout(cooldownTimer.current);
+            clearInterval(pollIntervalRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ── Scanner lifecycle helpers ───────────────────────────────────────────
+    // ── Scanner lifecycle ───────────────────────────────────────────────────
 
     const stopScanner = useCallback(async () => {
         if (!scannerRef.current) return;
         try {
-            if (scannerRef.current.isScanning) {
-                await scannerRef.current.stop();
-            }
+            if (scannerRef.current.isScanning) await scannerRef.current.stop();
             await scannerRef.current.clear();
         } catch (err) {
-            // Some browsers throw on stop() if the scanner never fully started.
-            console.warn('[QRScanner] Error stopping scanner:', err);
+            console.error('[QRScanner] Error stopping scanner:', err);
         }
         scannerRef.current = null;
         setTorchOn(false);
@@ -317,71 +234,48 @@ export default function QRScanner() {
     const startScanner = useCallback(async () => {
         setCameraError(null);
         setScanResult(null);
-        setScannerStarting(true); // keep viewport visible during async start
+        setScannerStarting(true);
 
-        // Instantiate if needed.
         if (!scannerRef.current) {
             scannerRef.current = new Html5Qrcode(SCANNER_ELEMENT_ID, { verbose: false });
         }
 
-        const cameraConstraint = selectedCameraId
+        const constraint = selectedCameraId
             ? { deviceId: selectedCameraId }
             : { facingMode: 'environment' };
 
         try {
             await scannerRef.current.start(
-                cameraConstraint,
+                constraint,
                 SCANNER_CONFIG,
                 handleScanSuccess,
-                () => {} // Suppress per-frame "not found" logs
+                () => {}
             );
-
             setScannerActive(true);
             setScannerStarting(false);
 
-            // Detect torch support.
             try {
-                const capabilities =
-                    scannerRef.current.getRunningTrackCapabilities?.();
-                if (capabilities?.torch) {
-                    setTorchSupported(true);
-                }
-            } catch {
-                setTorchSupported(false);
-            }
+                const caps = scannerRef.current.getRunningTrackCapabilities?.();
+                if (caps?.torch) setTorchSupported(true);
+            } catch { setTorchSupported(false); }
 
-            // Re-populate camera list now that permission is granted.
-            Html5Qrcode.getCameras().then((devices) => {
-                if (devices?.length) setCameras(devices);
-            }).catch(() => {});
-
+            Html5Qrcode.getCameras()
+                .then((devices) => { if (devices?.length) setCameras(devices); })
+                .catch(() => {});
         } catch (err) {
             console.error('[QRScanner] Start error:', err);
             scannerRef.current = null;
             setScannerActive(false);
             setScannerStarting(false);
-
-            if (
-                err?.name === 'NotAllowedError' ||
-                err?.message?.toLowerCase().includes('permission')
-            ) {
-                setCameraError(
-                    'Camera access was denied. Please allow camera permissions in your browser settings and try again.'
-                );
-            } else if (
-                err?.name === 'NotFoundError' ||
-                err?.message?.toLowerCase().includes('not found')
-            ) {
-                setCameraError('No camera found. Please use the Manual Entry below.');
+            if (err?.name === 'NotAllowedError' || err?.message?.toLowerCase().includes('permission')) {
+                setCameraError('Camera access was denied. Please allow camera permissions and try again.');
+            } else if (err?.name === 'NotFoundError') {
+                setCameraError('No camera found. Please use Manual Entry below.');
             } else {
-                setCameraError(
-                    'Could not start the camera scanner. Try a different browser or use Manual Entry.'
-                );
+                setCameraError('Could not start the camera. Try a different browser or use Manual Entry.');
             }
         }
     }, [selectedCameraId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // ── Torch toggle ──────────────────────────────────────────────────────
 
     const toggleTorch = useCallback(async () => {
         if (!scannerRef.current || !torchSupported) return;
@@ -389,101 +283,276 @@ export default function QRScanner() {
             const next = !torchOn;
             await scannerRef.current.applyVideoConstraints({ advanced: [{ torch: next }] });
             setTorchOn(next);
-        } catch {
-            setTorchSupported(false);
-        }
+        } catch { setTorchSupported(false); }
     }, [torchOn, torchSupported]);
 
-    // ── Camera switch ───────────────────────────────────────────────────────
-
-    const handleCameraSwitch = useCallback(async (newCameraId) => {
-        setSelectedCameraId(newCameraId);
+    const handleCameraSwitch = useCallback(async (newId) => {
+        setSelectedCameraId(newId);
         if (scannerActive) {
             await stopScanner();
-            // Brief delay to let DOM settle before restart.
-            setTimeout(() => {
-                setSelectedCameraId(newCameraId);
-                startScanner();
-            }, 300);
+            setTimeout(() => { setSelectedCameraId(newId); startScanner(); }, 300);
         }
     }, [scannerActive, stopScanner, startScanner]);
 
-    // ── QR scan success handler ─────────────────────────────────────────────
+    // ── Core Validation Logic ───────────────────────────────────────────────
 
     const processValidation = useCallback(async (rawCode) => {
-        // Debounce: ignore if already processing.
         if (isProcessingRef.current) return;
         isProcessingRef.current = true;
-
         setValidating(true);
         setScanResult(null);
 
-        const result = await validateQRCode(rawCode.trim(), currentUser?.uid);
+        const bookingId = rawCode.trim();
 
-        setValidating(false);
-        setScanResult(result);
+        try {
+            // ── Step 1: Fetch & validate booking ────────────────────────────
+            let booking = null;
 
-        // Audio + haptic feedback.
-        playTone(result.success ? 'success' : 'error');
-        vibrate(result.success ? 'success' : 'error');
+            // Try direct doc fetch first (new format where QR is doc ID)
+            try {
+                // Ignore empty or invalid string lengths that would crash doc()
+                if (bookingId.length > 0 && !bookingId.includes('/')) {
+                    const bookingSnap = await getDoc(doc(db, 'bookings', bookingId));
+                    if (bookingSnap.exists()) {
+                        booking = { id: bookingSnap.id, ...bookingSnap.data() };
+                    }
+                }
+            } catch (err) {
+                // Ignore format errors
+            }
 
-        // Append to session history.
-        const historyEntry = {
+            // Fallback: Query by qrCode field (supports old PE-... formats)
+            if (!booking) {
+                try {
+                    const q = query(collection(db, 'bookings'), where('qrCode', '==', bookingId));
+                    const querySnap = await getDocs(q);
+                    if (!querySnap.empty) {
+                        const snap = querySnap.docs[0];
+                        booking = { id: snap.id, ...snap.data() };
+                    }
+                } catch (err) {
+                    // Ignore query errors
+                }
+            }
+
+            if (!booking) {
+                playTone('error'); vibrate('error');
+                setScanResult({ success: false, message: 'Invalid QR code.' });
+                addHistory({ success: false, bookingId, qrSnippet: rawCode.slice(0, 20) });
+                return;
+            }
+
+            if (booking.status === 'cancelled') {
+                playTone('error'); vibrate('error');
+                setScanResult({ success: false, message: 'This booking was cancelled.' });
+                addHistory({ success: false, bookingId, qrSnippet: rawCode.slice(0, 20) });
+                return;
+            }
+
+            if (booking.checkedOut === true || booking.status === 'completed') {
+                playTone('error'); vibrate('error');
+                setScanResult({ success: false, message: 'Already checked out.' });
+                addHistory({ success: false, bookingId, qrSnippet: rawCode.slice(0, 20) });
+                return;
+            }
+
+            // ── Step 2: Check-In Flow ──────────────────────────────────────────
+            if (booking.status === 'confirmed') {
+                await updateDoc(doc(db, 'bookings', booking.id), {
+                    status: 'checked-in',
+                    checkInTime: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                });
+                
+                playTone('success'); vibrate('success');
+                setScanResult({
+                    success: true,
+                    message: `✓ Checked IN. User is now parking in Spot #${booking.spotNumber}.`,
+                    booking,
+                });
+                addHistory({ success: true, bookingId: booking.id, qrSnippet: booking.id.slice(0, 20) });
+
+                setTimeout(() => {
+                    setScanResult(null);
+                    isProcessingRef.current = false;
+                }, 3000);
+                return;
+            }
+
+            // ── Step 3: Check-Out Flow (Overcharge & Release) ──────────────────
+            if (booking.status !== 'checked-in') {
+                // Safety net
+                playTone('error'); vibrate('error');
+                setScanResult({ success: false, message: 'Invalid booking state for checkout.' });
+                return;
+            }
+
+            const endTimeDate = getEndTimeDate(booking);
+            const graceCutoff = new Date(endTimeDate.getTime() + OVERCHARGE_GRACE_MINUTES * 60000);
+            const now = new Date();
+
+            if (now > graceCutoff && !booking.overchargePaid) {
+                // Check if there's an unpaid overcharge already being tracked
+                if (overchargeInfo && overchargeInfo.bookingId === bookingId && !overchargeInfo.paid) {
+                    playTone('error'); vibrate('error');
+                    setScanResult({
+                        success: false,
+                        message: `Payment pending. KES ${overchargeInfo.extraCharge} not yet received. Try again after user pays.`,
+                    });
+                    return;
+                }
+
+                const extraMinutes = Math.ceil((now - endTimeDate) / 60000);
+
+                // Fetch lot for hourlyRate
+                let hourlyRate = 100;
+                try {
+                    const lotSnap = await getDoc(doc(db, 'parking-lots', booking.lotId));
+                    if (lotSnap.exists()) hourlyRate = lotSnap.data().hourlyRate || 100;
+                } catch { /* keep default */ }
+
+                const extraCharge = Math.ceil(extraMinutes / 60) * hourlyRate;
+
+                // Fetch user phone
+                let userPhone = '';
+                try {
+                    const userSnap = await getDoc(doc(db, 'users', booking.userId));
+                    if (userSnap.exists()) userPhone = userSnap.data().phone || '';
+                } catch { /* keep empty */ }
+
+                setOverchargeInfo({
+                    bookingId,
+                    booking,
+                    extraMinutes,
+                    extraCharge,
+                    phone: userPhone,
+                    paid: false,
+                });
+
+                playTone('error'); vibrate('error');
+                setScanResult({ success: false, message: `User is ${extraMinutes} min late. Extra charge required.` });
+                return;
+            }
+
+            // Standard Checkout
+            await performCheckout(booking);
+
+        } catch (err) {
+            console.error('[QRScanner] processValidation error:', err);
+            setScanResult({ success: false, message: 'An error occurred. Please try again.' });
+        } finally {
+            setValidating(false);
+            cooldownTimer.current = setTimeout(() => {
+                isProcessingRef.current = false;
+            }, SCAN_COOLDOWN_MS);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [overchargeInfo]);
+
+    async function performCheckout(booking) {
+        try {
+            await releaseSpot(booking.lotId, booking.spotNumber, booking.id);
+            await updateDoc(doc(db, 'bookings', booking.id), {
+                status: 'completed',
+                checkedOut: true,
+                overchargePaid: true,
+                checkoutTime: serverTimestamp(),
+            });
+            playTone('success'); vibrate('success');
+            setScanResult({
+                success: true,
+                message: `✓ Checked out. Spot #${booking.spotNumber} is now free.`,
+                booking,
+            });
+            setOverchargeInfo(null);
+            addHistory({ success: true, bookingId: booking.id, qrSnippet: booking.id.slice(0, 20) });
+
+            // Auto-reset after 3 seconds
+            setTimeout(() => {
+                setScanResult(null);
+                isProcessingRef.current = false;
+            }, 3000);
+        } catch (err) {
+            console.error('[QRScanner] performCheckout error:', err);
+            setScanResult({ success: false, message: 'Checkout failed. Please try again.' });
+        }
+    }
+
+    // ── Overcharge M-Pesa ───────────────────────────────────────────────────
+
+    const handleSendMpesa = useCallback(async () => {
+        if (!overchargeInfo) return;
+        setSendingMpesa(true);
+        try {
+            await axios.post('https://parkfinder-hwy4.onrender.com/api/mpesa/stkpush', {
+                phone: overchargeInfo.phone || '254',
+                amount: overchargeInfo.extraCharge,
+                accountReference: overchargeInfo.bookingId,
+                transactionDesc: 'Parking Overcharge',
+                bookingId: overchargeInfo.bookingId,
+            });
+            setMpesaSent(true);
+
+            // Poll for overchargePaid === true every 5 seconds
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = setInterval(async () => {
+                try {
+                    const snap = await getDoc(doc(db, 'bookings', overchargeInfo.bookingId));
+                    if (snap.exists() && snap.data().overchargePaid === true) {
+                        clearInterval(pollIntervalRef.current);
+                        const booking = { id: snap.id, ...snap.data() };
+                        setOverchargeInfo(null);
+                        setMpesaSent(false);
+                        setValidating(true);
+                        await performCheckout(booking);
+                        setValidating(false);
+                    }
+                } catch (err) {
+                    console.error('[QRScanner] poll error:', err);
+                }
+            }, OVERCHARGE_POLL_INTERVAL_MS);
+        } catch (err) {
+            console.error('[QRScanner] sendMpesa error:', err);
+            setScanResult({ success: false, message: 'Failed to send M-Pesa prompt. Try again.' });
+        } finally {
+            setSendingMpesa(false);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [overchargeInfo]);
+
+    function addHistory({ success, bookingId, qrSnippet }) {
+        const entry = {
             id: Date.now(),
-            time: new Date().toLocaleTimeString('en-KE', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-            }),
-            success: result.success,
-            type: result.type,
-            action: result.success
-                ? result.type === 'check-in'
-                    ? 'Check-In'
-                    : 'Check-Out'
-                : null,
-            bookingId: result.booking?.id || null,
-            qrSnippet: rawCode.slice(0, 20),
-            message: result.message,
+            time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            success,
+            bookingId: bookingId || null,
+            qrSnippet: qrSnippet || '',
         };
-        setScanHistory((prev) => [historyEntry, ...prev].slice(0, MAX_HISTORY_ITEMS));
-
-        // Release debounce after cooldown.
-        cooldownTimer.current = setTimeout(() => {
-            isProcessingRef.current = false;
-        }, SCAN_COOLDOWN_MS);
-    }, [currentUser]);
+        setScanHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY_ITEMS));
+    }
 
     const handleScanSuccess = useCallback(
-        (decodedText) => {
-            processValidation(decodedText);
-        },
+        (decodedText) => processValidation(decodedText),
         [processValidation]
     );
 
-    // ── Manual entry ─────────────────────────────────────────────────────────
-
-    const handleManualValidation = useCallback(
-        async (e) => {
-            e.preventDefault();
-            const code = manualCode.trim();
-            if (!code) return;
-            if (isProcessingRef.current) return;
-            setManualCode('');
-            await processValidation(code);
-        },
-        [manualCode, processValidation]
-    );
-
-    // ── "Scan another" resets result & resumes scanner ────────────────────
+    const handleManualValidation = useCallback(async (e) => {
+        e.preventDefault();
+        const code = manualCode.trim();
+        if (!code || isProcessingRef.current) return;
+        setManualCode('');
+        await processValidation(code);
+    }, [manualCode, processValidation]);
 
     const handleScanAnother = useCallback(() => {
         setScanResult(null);
-        if (!scannerActive) return;
-        // Scanner is still running — just clear result to allow next scan.
-    }, [scannerActive]);
+        setOverchargeInfo(null);
+        setMpesaSent(false);
+        clearInterval(pollIntervalRef.current);
+        isProcessingRef.current = false;
+    }, []);
 
-    // ─── Render ─────────────────────────────────────────────────────────────
+    // ── Render ──────────────────────────────────────────────────────────────
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -492,15 +561,15 @@ export default function QRScanner() {
             <main className="flex-1 pb-safe lg:pb-6 overflow-y-auto">
                 <div className="px-4 pt-12 lg:pt-8 max-w-lg mx-auto">
 
-                    {/* ── Page Header ── */}
+                    {/* Header */}
                     <div className="mb-5">
                         <h1 className="text-xl font-bold text-gray-900">QR Scanner</h1>
                         <p className="text-gray-400 text-xs mt-0.5">
-                            Scan customer parking tickets to check in or out
+                            Scan customer parking tickets to check out
                         </p>
                     </div>
 
-                    {/* ── Camera Selector ── */}
+                    {/* Camera selector */}
                     {cameras.length > 1 && (
                         <div className="mb-3 flex items-center gap-2">
                             <SwitchCamera className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -518,19 +587,9 @@ export default function QRScanner() {
                         </div>
                     )}
 
-                    {/* ── Scanner Viewport ── */}
+                    {/* Scanner Viewport */}
                     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
                         <div className="relative bg-gray-900">
-                            {/*
-                             * IMPORTANT: This div must always be in the DOM and
-                             * must NEVER be display:none while the scanner is
-                             * starting or running. html5-qrcode injects a <video>
-                             * element here *before* setScannerActive(true) fires,
-                             * so hiding it with display:none / 'hidden' collapses
-                             * the video to 0×0 and produces a blank camera feed
-                             * on mobile. We use minHeight to ensure the element
-                             * has physical dimensions at all times.
-                             */}
                             <div
                                 id={SCANNER_ELEMENT_ID}
                                 style={{
@@ -540,7 +599,6 @@ export default function QRScanner() {
                                 }}
                             />
 
-                            {/* Starting-camera spinner */}
                             {scannerStarting && !scannerActive && (
                                 <div className="flex flex-col items-center justify-center py-14 gap-3">
                                     <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
@@ -548,7 +606,6 @@ export default function QRScanner() {
                                 </div>
                             )}
 
-                            {/* Placeholder when scanner is fully off */}
                             {!scannerActive && !scannerStarting && (
                                 <div className="flex flex-col items-center justify-center py-14 gap-4">
                                     <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center">
@@ -568,7 +625,6 @@ export default function QRScanner() {
                                 </div>
                             )}
 
-                            {/* Validating overlay */}
                             {validating && (
                                 <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-3 rounded-2xl">
                                     <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
@@ -577,36 +633,22 @@ export default function QRScanner() {
                             )}
                         </div>
 
-                        {/* Scanner Controls */}
                         {scannerActive && (
                             <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
                                 <div className="flex items-center gap-1.5">
                                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                                    <span className="text-xs text-gray-500 font-medium">
-                                        Scanning…
-                                    </span>
+                                    <span className="text-xs text-gray-500 font-medium">Scanning…</span>
                                 </div>
-
                                 <div className="flex items-center gap-2">
                                     {torchSupported && (
                                         <button
                                             onClick={toggleTorch}
-                                            title={torchOn ? 'Turn off torch' : 'Turn on torch'}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                                                torchOn
-                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                            }`}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${torchOn ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                                         >
-                                            {torchOn ? (
-                                                <Zap className="w-3.5 h-3.5" />
-                                            ) : (
-                                                <ZapOff className="w-3.5 h-3.5" />
-                                            )}
+                                            {torchOn ? <Zap className="w-3.5 h-3.5" /> : <ZapOff className="w-3.5 h-3.5" />}
                                             {torchOn ? 'Torch On' : 'Torch'}
                                         </button>
                                     )}
-
                                     <button
                                         onClick={stopScanner}
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition"
@@ -619,7 +661,7 @@ export default function QRScanner() {
                         )}
                     </div>
 
-                    {/* ── Camera / Permission Error ── */}
+                    {/* Camera Error */}
                     {cameraError && (
                         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-800">
                             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -627,10 +669,73 @@ export default function QRScanner() {
                         </div>
                     )}
 
-                    {/* ── Scan Result Card ── */}
-                    <ResultCard result={scanResult} onScanAnother={handleScanAnother} />
+                    {/* Scan Result */}
+                    {scanResult && (
+                        <div className={`rounded-2xl p-4 mb-5 border ${scanResult.success ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                            <div className="flex items-start gap-3">
+                                <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${scanResult.success ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                                    {scanResult.success
+                                        ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                        : <XCircle className="w-5 h-5 text-red-600" />}
+                                </div>
+                                <div className="flex-1">
+                                    <p className={`font-bold text-sm ${scanResult.success ? 'text-emerald-800' : 'text-red-800'}`}>
+                                        {scanResult.message}
+                                    </p>
+                                    {scanResult.success && scanResult.booking && (
+                                        <p className="text-xs text-emerald-700 mt-1">
+                                            Booking {scanResult.booking.id} • {scanResult.booking.plateNumber || ''}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleScanAnother}
+                                className="mt-3 flex items-center gap-1.5 text-gray-500 text-xs font-medium hover:text-gray-700 transition"
+                            >
+                                <RefreshCw className="w-3 h-3" />
+                                Scan Another
+                            </button>
+                        </div>
+                    )}
 
-                    {/* ── Manual Entry ── */}
+                    {/* Overcharge Panel */}
+                    {overchargeInfo && !overchargeInfo.paid && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 mb-5">
+                            <div className="flex items-center gap-2 mb-3">
+                                <AlertTriangle className="w-5 h-5 text-orange-500" />
+                                <h3 className="text-sm font-bold text-orange-800">Overcharge Required</h3>
+                            </div>
+                            <div className="space-y-1.5 text-sm text-orange-700 mb-4">
+                                <p>User is <strong>{overchargeInfo.extraMinutes} minutes</strong> late.</p>
+                                <p>Extra charge: <strong>KES {overchargeInfo.extraCharge}</strong></p>
+                                {overchargeInfo.phone && (
+                                    <p>Phone: <strong>{overchargeInfo.phone}</strong></p>
+                                )}
+                            </div>
+
+                            {mpesaSent ? (
+                                <div className="flex items-center gap-2 bg-orange-100 rounded-xl px-4 py-3">
+                                    <Loader2 className="w-4 h-4 text-orange-600 animate-spin flex-shrink-0" />
+                                    <p className="text-xs text-orange-700 font-medium">
+                                        Waiting for M-Pesa payment… (auto-checking every 5s)
+                                    </p>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleSendMpesa}
+                                    disabled={sendingMpesa}
+                                    className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl text-sm transition"
+                                >
+                                    {sendingMpesa
+                                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+                                        : <><DollarSign className="w-4 h-4" /> Send M-Pesa Prompt</>}
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Manual Entry */}
                     <div className="bg-white rounded-2xl p-4 border border-gray-100 mb-5">
                         <h3 className="text-gray-900 font-semibold text-sm mb-3 flex items-center gap-2">
                             <QrCode className="w-4 h-4 text-teal-600" />
@@ -641,7 +746,7 @@ export default function QRScanner() {
                                 type="text"
                                 value={manualCode}
                                 onChange={(e) => setManualCode(e.target.value)}
-                                placeholder="Enter QR code (e.g. PE-1234567-ABCDE)"
+                                placeholder="Enter booking ID"
                                 disabled={validating}
                                 className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50"
                             />
@@ -650,24 +755,18 @@ export default function QRScanner() {
                                 disabled={validating || !manualCode.trim()}
                                 className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-1.5"
                             >
-                                {validating ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    'Validate'
-                                )}
+                                {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validate'}
                             </button>
                         </form>
                     </div>
 
-                    {/* ── Scan History ── */}
+                    {/* Scan History */}
                     {scanHistory.length > 0 && (
                         <div className="bg-white rounded-2xl p-4 border border-gray-100 mb-6">
                             <h3 className="text-gray-900 font-semibold text-sm mb-3 flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-gray-400" />
                                 Recent Scans
-                                <span className="ml-auto text-[10px] font-normal text-gray-400">
-                                    Session only
-                                </span>
+                                <span className="ml-auto text-[10px] font-normal text-gray-400">Session only</span>
                             </h3>
                             <div>
                                 {scanHistory.map((item) => (
@@ -676,7 +775,6 @@ export default function QRScanner() {
                             </div>
                         </div>
                     )}
-
                 </div>
             </main>
         </div>

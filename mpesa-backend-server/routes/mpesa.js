@@ -33,7 +33,7 @@ router.post('/stkpush', async (req, res) => {
             PartyB: shortcode,
             PhoneNumber: phone,
             CallBackURL: callbackUrl,
-            AccountReference: accountReference || 'ParkEase',
+            AccountReference: accountReference || 'ParkEase', // This is now exactly the bookingId from QRScanner / BookingModal
             TransactionDesc: transactionDesc || 'Parking Payment'
         };
 
@@ -74,6 +74,12 @@ router.post('/callback', async (req, res) => {
 
         const db = admin.firestore();
         const bookingsRef = db.collection('bookings');
+        
+        // We set AccountReference = bookingId in the stk push request
+        // Safaricom passes it back in the CallbackMetadata or we can grab it if needed.
+        // Wait, STK push callback doesn't always include AccountReference easily in the body.
+        // It's safer to query by checkoutRequestId since we save it when initiating.
+        const checkoutRequestId = callbackData.CheckoutRequestID;
         const q = bookingsRef.where('checkoutRequestId', '==', checkoutRequestId);
         const snapshot = await q.get();
 
@@ -85,45 +91,49 @@ router.post('/callback', async (req, res) => {
 
             if (!snapshot.empty) {
                 const batch = db.batch();
-                snapshot.docs.forEach((doc) => {
-                    batch.update(doc.ref, {
-                        status: 'confirmed',
-                        paymentReceipt: receipt,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
+                snapshot.docs.forEach((docSnap) => {
+                    const bookingData = docSnap.data();
+                    
+                    // If it's an overcharge, we just mark it paid
+                    if (bookingData.status === 'confirmed' || bookingData.checkedOut) {
+                        batch.update(docSnap.ref, {
+                            overchargePaid: true,
+                            overchargeReceipt: receipt,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    } else {
+                        // Standard initial booking confirmation
+                        batch.update(docSnap.ref, {
+                            status: 'confirmed',
+                            paymentReceipt: receipt,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    }
                 });
                 await batch.commit();
             }
         } else {
             // Failed
             if (!snapshot.empty) {
-                for (const bookingDoc of snapshot.docs) {
-                    const bookingData = bookingDoc.data();
-                    const lotId = bookingData.lotId;
-
-                    await db.runTransaction(async (tx) => {
-                        const lotRef = db.collection('parking-lots').doc(lotId);
-                        const lotSnap = await tx.get(lotRef);
-
-                        tx.update(bookingDoc.ref, {
+                const batch = db.batch();
+                snapshot.docs.forEach((docSnap) => {
+                    const bookingData = docSnap.data();
+                    
+                    if (bookingData.status === 'confirmed' || bookingData.checkedOut) {
+                        batch.update(docSnap.ref, {
+                            overchargePaymentFailed: true,
+                            overchargeFailureReason: callbackData.ResultDesc,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    } else {
+                        batch.update(docSnap.ref, {
                             status: 'payment-failed',
                             failureReason: callbackData.ResultDesc,
                             updatedAt: admin.firestore.FieldValue.serverTimestamp()
                         });
-
-                        if (lotSnap.exists) {
-                            const lot = lotSnap.data() || {};
-                            const capacity = Number(lot.capacity) || 0;
-                            const currentSpots = lot.availableSpots !== undefined ? Number(lot.availableSpots) : capacity;
-                            const nextSpots = capacity > 0 ? Math.min(capacity, currentSpots + 1) : currentSpots + 1;
-
-                            tx.update(lotRef, {
-                                availableSpots: nextSpots,
-                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
-                        }
-                    });
-                }
+                    }
+                });
+                await batch.commit();
             }
         }
 

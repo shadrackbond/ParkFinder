@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useBookings from '../hooks/useBookings';

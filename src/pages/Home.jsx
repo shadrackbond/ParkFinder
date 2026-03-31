@@ -15,7 +15,7 @@ function loadGoogleMapsScript() {
 
     window._googleMapsPromise = new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places&loading=async`;
         script.async = true;
         script.defer = true;
         script.onload = resolve;
@@ -30,13 +30,65 @@ export default function Home() {
     const { lots, loading } = useParkingLots();
     const { bookings } = useBookings(currentUser?.uid);
 
+    function getBookingDates(b) {
+        if (!b) return null;
+        let startObj = new Date();
+        let endObj = new Date();
+
+        if (b.startTime?.seconds) {
+            startObj = new Date(b.startTime.seconds * 1000);
+            endObj = b.endTime?.seconds ? new Date(b.endTime.seconds * 1000) : startObj;
+        } else if (typeof b.startTime === 'string' && b.date) {
+            const [y, m, d] = b.date.split('-').map(Number);
+            startObj = new Date(y, m - 1, d);
+            endObj = new Date(y, m - 1, d);
+            
+            const [sh, sm] = b.startTime.split(':').map(Number);
+            const [eh, em] = (b.endTime || '00:00').split(':').map(Number);
+            
+            startObj.setHours(sh, sm, 0, 0);
+            if ((eh * 60 + em) <= (sh * 60 + sm)) {
+                 endObj.setDate(endObj.getDate() + 1);
+            }
+            endObj.setHours(eh, em, 0, 0);
+        } else if (b.startTime?.toDate) {
+            startObj = b.startTime.toDate();
+            endObj = b.endTime?.toDate ? b.endTime.toDate() : startObj;
+        } else {
+            return null; // fallback
+        }
+        return { start: startObj, end: endObj };
+    }
+
     const now = new Date();
     const activeSession = bookings?.find(b => {
-        if (b.status !== 'confirmed') return false;
-        const bStart = b.startTime?.seconds ? new Date(b.startTime.seconds * 1000) : (b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime));
-        const bEnd = b.endTime?.seconds ? new Date(b.endTime.seconds * 1000) : (b.endTime?.toDate ? b.endTime.toDate() : new Date(b.endTime));
-        return now >= bStart && now <= bEnd;
+        if (b.status !== 'confirmed' && b.status !== 'checked-in') return false;
+        const dates = getBookingDates(b);
+        if (!dates) return false;
+        
+        // Match if Checked-In, OR if now is within 30 minutes before start up until end.
+        if (b.status === 'checked-in') return true;
+        
+        const thirtyMinsBefore = new Date(dates.start.getTime() - 30 * 60000);
+        return now >= thirtyMinsBefore && now <= dates.end;
     });
+
+    let bannerTitle = '';
+    let bannerMessage = '';
+    
+    if (activeSession) {
+        const dates = getBookingDates(activeSession);
+        if (activeSession.status === 'checked-in') {
+            bannerTitle = 'Active Session';
+            bannerMessage = `Checked IN at Spot #${activeSession.spotNumber || '--'}`;
+        } else if (dates && now < dates.start) {
+            bannerTitle = 'Session Approaching';
+            bannerMessage = `Starts at ${dates.start.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+            bannerTitle = 'Session Started';
+            bannerMessage = `Reserved at ${activeSession.lotName || 'Parking Lot'}`;
+        }
+    }
 
     const [search, setSearch] = useState('');
     const [searchActive, setSearchActive] = useState(false);
@@ -129,13 +181,9 @@ export default function Home() {
                 {activeSession && (
                     <div className="mb-4 bg-indigo-600 rounded-xl p-4 shadow-lg flex items-center justify-between text-white animate-pulse-slow">
                         <div>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-200 mb-0.5">Live Booking</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-200 mb-0.5">{bannerTitle}</p>
                             <p className="text-sm font-bold truncate pr-2">
-                                🚗 Active Session: {activeSession.lotName} until {
-                                    activeSession.endTime?.seconds
-                                        ? new Date(activeSession.endTime.seconds * 1000).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })
-                                        : (activeSession.endTime?.toDate ? activeSession.endTime.toDate().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }) : '')
-                                }
+                                🚗 {bannerMessage}
                             </p>
                         </div>
                     </div>

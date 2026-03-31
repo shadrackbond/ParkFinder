@@ -29,7 +29,9 @@ export default function useBookings(userId) {
 
         const q = query(collection(db, 'bookings'), where('userId', '==', userId));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const data = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(b => b.customerCleared !== true);
             // Order them locally if needed or just set
             data.sort((a, b) => {
                 const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;

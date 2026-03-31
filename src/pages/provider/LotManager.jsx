@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import ProviderNav from '../../components/provider/ProviderNav';
 import { createOrUpdateLot, getLotByProvider } from '../../services/parkingService';
-import { MapPin, DollarSign, Car, Save, CheckCircle2, ParkingCircle, Edit3, Plus, X, Link, Upload, Loader2, Clock } from 'lucide-react';
+import { MapPin, DollarSign, Car, Save, CheckCircle2, ParkingCircle, Edit3, Plus, X, Link, Upload, Loader2, Clock, RefreshCcw, AlertTriangle } from 'lucide-react';
+import { db } from '../../config/firebase';
+import { writeBatch, collection, doc, getDocs, updateDoc } from 'firebase/firestore';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
 
@@ -12,7 +14,7 @@ function loadGoogleMapsScript() {
 
     window._googleMapsPromise = new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places&loading=async`;
         script.async = true;
         script.defer = true;
         script.onload = resolve;
@@ -86,6 +88,7 @@ export default function LotManager() {
     const [loadingLot, setLoadingLot] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [clearing, setClearing] = useState(false);
     const [showUrlInput, setShowUrlInput] = useState(false);
     const [urlValue, setUrlValue] = useState('');
     const fileRef = useRef(null);
@@ -186,14 +189,48 @@ export default function LotManager() {
         setLotImages((prev) => prev.filter((_, i) => i !== index));
     }
 
+    /**
+     * Create missing spot docs for a lot using a single writeBatch.
+     * Spots 1..capacity are created if they don't already exist.
+     * Existing spot docs (with booking history) are NEVER overwritten.
+     */
+    async function initializeSpots(lotId, capacity) {
+        if (!lotId || capacity <= 0) return;
+        try {
+            const spotsCol = collection(db, 'parking-lots', lotId, 'spots');
+            const existingSnap = await getDocs(spotsCol);
+            const existingNumbers = new Set(
+                existingSnap.docs.map((d) => d.data().spotNumber)
+            );
+
+            const batch = writeBatch(db);
+            let batchCount = 0;
+
+            for (let i = 1; i <= capacity; i++) {
+                if (!existingNumbers.has(i)) {
+                    const spotRef = doc(spotsCol, String(i));
+                    batch.set(spotRef, { spotNumber: i, bookings: [] });
+                    batchCount++;
+                }
+            }
+
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+        } catch (err) {
+            console.error('[LotManager] initializeSpots failed:', err);
+        }
+    }
+
     async function handleSave(e) {
         e.preventDefault();
         try {
             setSaving(true);
+            const capacity = Number(formData.capacity) || 0;
             const lotData = {
                 businessName: formData.businessName,
                 businessLocation: formData.businessLocation,
-                capacity: Number(formData.capacity) || 0,
+                capacity,
                 hourlyRate: Number(formData.hourlyRate) || 0,
                 description: formData.description,
                 openTime: formData.openTime,
@@ -204,6 +241,10 @@ export default function LotManager() {
                 ...(lot ? {} : { isActive: false }),
             };
             await createOrUpdateLot(currentUser.uid, lotData);
+
+            // Initialise spot sub-collection (creates missing spot docs, preserves existing)
+            await initializeSpots(currentUser.uid, capacity);
+
             setSaved(true);
             setTimeout(() => {
                 setSaved(false);
@@ -215,6 +256,53 @@ export default function LotManager() {
             console.error('Failed to update lot:', err);
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function handleClearSpots() {
+        if (!lot || !lot.capacity) return;
+        if (!window.confirm('WARNING: This will wipe ALL bookings (active and future) for your lot. Are you absolutely sure you want to reset all parking spots to completely empty?')) return;
+        
+        setClearing(true);
+        try {
+            const spotsCol = collection(db, 'parking-lots', currentUser.uid, 'spots');
+            const existingSnap = await getDocs(spotsCol);
+            
+            const batch = writeBatch(db);
+            let batchCount = 0;
+            
+            // Overwrite every spot up to capacity to an empty state
+            for (let i = 1; i <= lot.capacity; i++) {
+                const spotRef = doc(spotsCol, String(i));
+                batch.set(spotRef, { spotNumber: i, bookings: [] });
+                batchCount++;
+            }
+            
+            // Delete any extra spots that might have existed if capacity was shrunk
+            existingSnap.docs.forEach(d => {
+                if (Number(d.id) > lot.capacity) {
+                    batch.delete(d.ref);
+                    batchCount++;
+                }
+            });
+            
+            // Reset the old availableSpots counter to match capacity
+            const lotRef = doc(db, 'parking-lots', currentUser.uid);
+            batch.update(lotRef, { availableSpots: lot.capacity });
+            batchCount++;
+            
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+            
+            setLot(prev => ({ ...prev, availableSpots: lot.capacity }));
+            alert('Operation successful. All spaces have been wiped and set back to empty.');
+            
+        } catch (err) {
+            console.error('[LotManager] clear spots failed:', err);
+            alert('Failed to reset spots: ' + err.message);
+        } finally {
+            setClearing(false);
         }
     }
 
@@ -457,6 +545,31 @@ export default function LotManager() {
                                         <p className="text-lg font-bold text-teal-600">KSh {lot?.hourlyRate || '—'}</p>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Developer Danger Zone for Providers */}
+                    {hasSetup && !editing && (
+                        <div className="mt-8 mb-6 border-t border-red-100 pt-6">
+                            <h3 className="text-sm font-bold text-red-600 mb-2 flex items-center gap-1.5">
+                                <AlertTriangle className="w-4 h-4" /> Danger Zone
+                            </h3>
+                            <div className="bg-red-50 rounded-xl p-4 border border-red-100 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-bold text-red-900">Reset All Spaces</p>
+                                    <p className="text-xs text-red-700 mt-1">
+                                        Wipe out all bookings and reset availability back to max capacity. Use carefully.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleClearSpots}
+                                    disabled={clearing}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold whitespace-nowrap transition disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    {clearing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+                                    {clearing ? 'Resetting...' : 'Hard Reset Spots'}
+                                </button>
                             </div>
                         </div>
                     )}

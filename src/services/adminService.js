@@ -92,39 +92,88 @@ export async function toggleLotStatus(providerId, isActive) {
  */
 export async function getPlatformStats() {
     try {
-        const usersSnap = await getDocs(collection(db, 'users'));
+        const [usersSnap, bookingsSnap, activeLotsSnap] = await Promise.all([
+            getDocs(collection(db, 'users')),
+            getDocs(collection(db, 'bookings')).catch(() => ({ docs: [], size: 0 })),
+            getDocs(query(collection(db, 'parking-lots'), where('isActive', '==', true))).catch(() => ({ size: 0 })),
+        ]);
+
         const users = usersSnap.docs.map((d) => d.data());
         const providers = users.filter((u) => u.role === 'provider');
         const pending = providers.filter((u) => u.status === 'pending');
+        const bookings = bookingsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const activeLots = activeLotsSnap.size || 0;
 
-        let totalBookings = 0;
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+
         let revenue = 0;
-        try {
-            const bookingsSnap = await getDocs(collection(db, 'bookings'));
-            totalBookings = bookingsSnap.size;
-            bookingsSnap.docs.forEach((d) => {
-                revenue += d.data().totalPrice || 0;
-            });
-        } catch (e) { /* bookings collection may not exist yet */ }
+        let todayRevenue = 0;
+        let weekRevenue = 0;
+        let monthRevenue = 0;
+        let paidBookings = 0;
 
-        let activeLots = 0;
-        try {
-            const q = query(collection(db, 'parking-lots'), where('isActive', '==', true));
-            const lotsSnap = await getDocs(q);
-            activeLots = lotsSnap.size;
-        } catch (e) { /* lots collection may not exist yet */ }
+        const recentRevenue = bookings
+            .filter(isRevenueBooking)
+            .map((booking) => {
+                const createdAt = toDateObj(booking.createdAt) || toDateObj(booking.updatedAt) || new Date();
+                const amount = getBookingAmount(booking);
+
+                revenue += amount;
+                paidBookings += 1;
+
+                if (createdAt >= startOfToday) todayRevenue += amount;
+                if (createdAt >= sevenDaysAgo) weekRevenue += amount;
+                if (createdAt >= thirtyDaysAgo) monthRevenue += amount;
+
+                return {
+                    id: booking.id,
+                    lotName: booking.lotName || 'Parking',
+                    plateNumber: booking.plateNumber || 'N/A',
+                    amount,
+                    status: booking.status || 'unknown',
+                    paymentReceipt: booking.paymentReceipt || null,
+                    createdAt,
+                    timeLabel: formatTimeLabel(createdAt),
+                };
+            })
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .slice(0, 5);
 
         return {
             totalUsers: users.length,
             totalProviders: providers.length,
             pendingProviders: pending.length,
             activeLots,
-            totalBookings,
+            totalBookings: bookingsSnap.size || 0,
             revenue,
+            revenueSummary: {
+                today: todayRevenue,
+                week: weekRevenue,
+                month: monthRevenue,
+                allTime: revenue,
+            },
+            revenueMeta: {
+                paidBookings,
+                averageBookingValue: paidBookings ? Math.round(revenue / paidBookings) : 0,
+            },
+            recentRevenue,
         };
     } catch (err) {
         console.error('Failed to get platform stats:', err);
-        return { totalUsers: 0, totalProviders: 0, pendingProviders: 0, activeLots: 0, totalBookings: 0, revenue: 0 };
+        return {
+            totalUsers: 0,
+            totalProviders: 0,
+            pendingProviders: 0,
+            activeLots: 0,
+            totalBookings: 0,
+            revenue: 0,
+            revenueSummary: { today: 0, week: 0, month: 0, allTime: 0 },
+            revenueMeta: { paidBookings: 0, averageBookingValue: 0 },
+            recentRevenue: [],
+        };
     }
 }
 
@@ -148,6 +197,22 @@ function formatDayLabel(key) {
     const [, m, d] = key.split('-');
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${months[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
+}
+
+function getBookingAmount(booking) {
+    return Number(booking?.amount ?? booking?.totalPrice ?? 0) || 0;
+}
+
+function isRevenueBooking(booking) {
+    return new Set(['confirmed', 'checked-in', 'completed', 'active']).has(booking?.status);
+}
+
+function formatTimeLabel(date) {
+    return date.toLocaleTimeString('en-KE', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    });
 }
 
 /**

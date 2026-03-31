@@ -146,7 +146,7 @@ function dayKey(date) {
 
 function formatDayLabel(key) {
     const [, m, d] = key.split('-');
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${months[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 

@@ -37,7 +37,7 @@ function SmartRedirect() {
 function App() {
   // Wake-up ping for Render free-tier
   useEffect(() => {
-    axios.get('https://parkfinder-hwy4.onrender.com/health-check').catch(() => {});
+    axios.get('https://parkfinder-hwy4.onrender.com/health-check').catch(() => { });
   }, []);
 
   return (

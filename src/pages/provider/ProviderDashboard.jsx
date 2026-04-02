@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ProviderNav from '../../components/provider/ProviderNav';
-import { TrendingUp, Car, DollarSign, Shield, MapPin, ParkingCircle, Loader2 } from 'lucide-react';
+import { TrendingUp, Car, DollarSign, Shield, MapPin, ParkingCircle, Loader2, QrCode, CalendarClock, AlertTriangle as AlertTriangleIcon } from 'lucide-react';
 import { getLotByProvider } from '../../services/parkingService';
 import { db } from '../../config/firebase';
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
@@ -214,6 +214,56 @@ export default function ProviderDashboard() {
                             );
                         })}
                     </div>
+
+                    {/* Quick Actions */}
+                    {hasLotSetup && (
+                        <div className="mb-6">
+                            <h2 className="text-sm font-bold text-gray-900 mb-2">Quick Actions</h2>
+                            <div className="grid grid-cols-3 gap-2.5">
+                                <button
+                                    onClick={() => navigate('/provider/qr-scanner')}
+                                    className="bg-white rounded-xl p-3 border border-gray-100 hover:shadow-card transition flex flex-col items-center gap-1.5"
+                                >
+                                    <span className="w-9 h-9 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-600 mb-0.5">
+                                        <QrCode className="w-4 h-4" />
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-gray-800 text-center leading-tight">
+                                        Start
+                                        <br />
+                                        Scanning
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => navigate('/provider/bookings')}
+                                    className="bg-white rounded-xl p-3 border border-gray-100 hover:shadow-card transition flex flex-col items-center gap-1.5"
+                                >
+                                    <span className="w-9 h-9 rounded-lg flex items-center justify-center bg-blue-50 text-blue-600 mb-0.5">
+                                        <CalendarClock className="w-4 h-4" />
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-gray-800 text-center leading-tight">
+                                        Today&apos;s
+                                        <br />
+                                        Bookings
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => navigate('/provider/lots')}
+                                    className="bg-white rounded-xl p-3 border border-gray-100 hover:shadow-card transition flex flex-col items-center gap-1.5"
+                                >
+                                    <span className="w-9 h-9 rounded-lg flex items-center justify-center bg-amber-50 text-amber-600 mb-0.5">
+                                        <AlertTriangleIcon className="w-4 h-4" />
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-gray-800 text-center leading-tight">
+                                        Manage
+                                        <br />
+                                        Lot
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Today Panel */}
                     {hasLotSetup && (

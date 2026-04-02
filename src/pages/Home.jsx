@@ -98,10 +98,27 @@ export default function Home() {
     const [filteredLots, setFilteredLots] = useState(null);      // null = show all
     const [selectedLotForBooking, setSelectedLotForBooking] = useState(null);
 
+    const [notifications, setNotifications] = useState([]);
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [hasUnread, setHasUnread] = useState(false);
+
     const autocompleteService = useRef(null);
     const inputRef = useRef(null);
 
     const displayName = userProfile?.displayName || currentUser?.displayName || 'there';
+
+    // Subscribe to app-wide notifications (from notifications/notifications.js)
+    useEffect(() => {
+        function handleAppNotification(event) {
+            const detail = event.detail;
+            if (!detail) return;
+            setNotifications((prev) => [detail, ...prev].slice(0, 10));
+            setHasUnread(true);
+        }
+
+        window.addEventListener('app:notification', handleAppNotification);
+        return () => window.removeEventListener('app:notification', handleAppNotification);
+    }, []);
 
     // Initialize Google Places AutocompleteService
     useEffect(() => {
@@ -165,17 +182,71 @@ export default function Home() {
     return (
         <div className="min-h-screen bg-gray-50 pb-safe page-enter">
             {/* Header */}
-            <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100">
+            <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100 relative">
                 <div className="flex items-center justify-between mb-5">
                     <div>
                         <p className="text-gray-400 text-xs font-medium">Welcome back,</p>
                         <h1 className="text-gray-900 text-xl font-bold">{displayName}</h1>
                     </div>
-                    <button className="relative bg-gray-50 p-2.5 rounded-full border border-gray-100 hover:bg-gray-100 transition">
+                    <button
+                        className={`relative bg-gray-50 p-2.5 rounded-full border border-gray-100 hover:bg-gray-100 transition ${hasUnread ? 'ring-2 ring-teal-400 animate-pulse' : ''}`}
+                        onClick={() => {
+                            setNotificationsOpen((open) => !open);
+                            setHasUnread(false);
+                        }}
+                    >
                         <Bell className="w-5 h-5 text-gray-600" />
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+                        {hasUnread && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+                        )}
                     </button>
                 </div>
+
+                {notificationsOpen && (
+                    <div className="absolute right-5 top-20 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 z-40 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                            <p className="text-xs font-bold text-gray-800">Notifications</p>
+                            {notifications.length > 0 && (
+                                <button
+                                    className="text-[10px] text-teal-600 font-semibold"
+                                    onClick={() => {
+                                        setNotifications([]);
+                                        setHasUnread(false);
+                                    }}
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        {notifications.length === 0 ? (
+                            <div className="px-4 py-5 text-center text-xs text-gray-400">
+                                No notifications yet
+                            </div>
+                        ) : (
+                            <ul className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                                {notifications.map((n) => (
+                                    <li key={n.timestamp} className="px-4 py-3 text-xs flex flex-col gap-0.5">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="font-semibold text-gray-800 truncate">{n.title}</p>
+                                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                                {new Date(n.timestamp).toLocaleTimeString('en-KE', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 leading-snug">{n.message}</p>
+                                        {n.type && (
+                                            <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wide">
+                                                {n.type}
+                                            </span>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
 
                 {/* Live Booking Banner */}
                 {activeSession && (

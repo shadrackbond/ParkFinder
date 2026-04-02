@@ -98,9 +98,12 @@ export default function Home() {
     const [filteredLots, setFilteredLots] = useState(null);      // null = show all
     const [selectedLotForBooking, setSelectedLotForBooking] = useState(null);
 
-    const [notifications, setNotifications] = useState([]);
+    const [notifications, setNotifications] = useState([]); // { key, title, message, type, timestamp, meta, read }
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [hasUnread, setHasUnread] = useState(false);
+    const [toastNotification, setToastNotification] = useState(null);
+    const [toastVisible, setToastVisible] = useState(false);
+    const toastTouchStartY = useRef(null);
 
     const autocompleteService = useRef(null);
     const inputRef = useRef(null);
@@ -112,8 +115,17 @@ export default function Home() {
         function handleAppNotification(event) {
             const detail = event.detail;
             if (!detail) return;
-            setNotifications((prev) => [detail, ...prev].slice(0, 10));
+            const item = { ...detail, read: false };
+            setNotifications((prev) => [item, ...prev].slice(0, 10));
             setHasUnread(true);
+
+            // Show swipeable toast popup for the newest notification
+            setToastNotification(item);
+            setToastVisible(true);
+            // Auto-hide after a few seconds
+            setTimeout(() => {
+                setToastVisible(false);
+            }, 5000);
         }
 
         window.addEventListener('app:notification', handleAppNotification);
@@ -210,11 +222,11 @@ export default function Home() {
                                 <button
                                     className="text-[10px] text-teal-600 font-semibold"
                                     onClick={() => {
-                                        setNotifications([]);
+                                        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
                                         setHasUnread(false);
                                     }}
                                 >
-                                    Clear
+                                    Mark all as read
                                 </button>
                             )}
                         </div>
@@ -225,9 +237,17 @@ export default function Home() {
                         ) : (
                             <ul className="max-h-64 overflow-y-auto divide-y divide-gray-100">
                                 {notifications.map((n) => (
-                                    <li key={n.timestamp} className="px-4 py-3 text-xs flex flex-col gap-0.5">
+                                    <li
+                                        key={n.timestamp}
+                                        className={`px-4 py-3 text-xs flex flex-col gap-0.5 ${n.read ? 'bg-white' : 'bg-teal-50/40'}`}
+                                        onClick={() => {
+                                            setNotifications((prev) => prev.map((item) => (
+                                                item.timestamp === n.timestamp ? { ...item, read: true } : item
+                                            )));
+                                        }}
+                                    >
                                         <div className="flex items-center justify-between gap-2">
-                                            <p className="font-semibold text-gray-800 truncate">{n.title}</p>
+                                            <p className={`truncate ${n.read ? 'font-medium text-gray-700' : 'font-semibold text-gray-900'}`}>{n.title}</p>
                                             <span className="text-[10px] text-gray-400 whitespace-nowrap">
                                                 {new Date(n.timestamp).toLocaleTimeString('en-KE', {
                                                     hour: '2-digit',
@@ -245,6 +265,44 @@ export default function Home() {
                                 ))}
                             </ul>
                         )}
+                    </div>
+                )}
+
+                {/* Swipeable toast popup for latest notification */}
+                {toastNotification && toastVisible && (
+                    <div
+                        className="fixed left-1/2 top-3 -translate-x-1/2 z-50 max-w-sm w-[90%]"
+                        onTouchStart={(e) => {
+                            toastTouchStartY.current = e.touches[0].clientY;
+                        }}
+                        onTouchMove={(e) => {
+                            const startY = toastTouchStartY.current;
+                            if (startY == null) return;
+                            const deltaY = e.touches[0].clientY - startY;
+                            // Swipe up to dismiss
+                            if (deltaY < -40) {
+                                setToastVisible(false);
+                                toastTouchStartY.current = null;
+                            }
+                        }}
+                        onTouchEnd={() => {
+                            toastTouchStartY.current = null;
+                        }}
+                    >
+                        <div className="bg-gray-900/95 text-white rounded-xl shadow-2xl px-4 py-3 flex items-start gap-3 animate-slide-down">
+                            <div className="mt-0.5 w-2 h-2 rounded-full bg-teal-400 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold truncate">{toastNotification.title}</p>
+                                <p className="text-[11px] text-gray-200 mt-0.5 line-clamp-2">{toastNotification.message}</p>
+                            </div>
+                            <button
+                                className="ml-2 text-gray-400 hover:text-gray-200"
+                                onClick={() => setToastVisible(false)}
+                                aria-label="Dismiss notification"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
                     </div>
                 )}
 

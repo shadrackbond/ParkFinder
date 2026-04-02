@@ -15,7 +15,7 @@ router.post('/stkpush', async (req, res) => {
         const { phone, amount, accountReference, transactionDesc } = req.body;
 
         const token = await tokenSingleton.getToken();
-        
+
         const shortcode = process.env.MPESA_SHORTCODE;
         const passkey = process.env.MPESA_PASSKEY;
         const timestamp = getTimestamp();
@@ -29,11 +29,11 @@ router.post('/stkpush', async (req, res) => {
             Timestamp: timestamp,
             TransactionType: 'CustomerPayBillOnline',
             Amount: amount,
-            PartyA: phone, 
+            PartyA: phone,
             PartyB: shortcode,
             PhoneNumber: phone,
-            CallBackURL: callbackUrl, 
-            AccountReference: accountReference || 'ParkEase',
+            CallBackURL: callbackUrl,
+            AccountReference: accountReference || 'ParkEase', // This is now exactly the bookingId from QRScanner / BookingModal
             TransactionDesc: transactionDesc || 'Parking Payment'
         };
 
@@ -71,9 +71,15 @@ router.post('/callback', async (req, res) => {
 
         const resultCode = callbackData.ResultCode;
         const checkoutRequestId = callbackData.CheckoutRequestID;
-        
+
         const db = admin.firestore();
         const bookingsRef = db.collection('bookings');
+        
+        // We set AccountReference = bookingId in the stk push request
+        // Safaricom passes it back in the CallbackMetadata or we can grab it if needed.
+        // Wait, STK push callback doesn't always include AccountReference easily in the body.
+        // It's safer to query by checkoutRequestId since we save it when initiating.
+        const checkoutRequestId = callbackData.CheckoutRequestID;
         const q = bookingsRef.where('checkoutRequestId', '==', checkoutRequestId);
         const snapshot = await q.get();
 
@@ -82,15 +88,27 @@ router.post('/callback', async (req, res) => {
             const metadataItem = callbackData.CallbackMetadata?.Item;
             const receiptItem = metadataItem?.find(item => item.Name === 'MpesaReceiptNumber');
             const receipt = receiptItem ? receiptItem.Value : 'N/A';
-            
+
             if (!snapshot.empty) {
                 const batch = db.batch();
-                snapshot.docs.forEach((doc) => {
-                    batch.update(doc.ref, {
-                        status: 'confirmed',
-                        paymentReceipt: receipt,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
+                snapshot.docs.forEach((docSnap) => {
+                    const bookingData = docSnap.data();
+                    
+                    // If it's an overcharge, we just mark it paid
+                    if (bookingData.status === 'confirmed' || bookingData.checkedOut) {
+                        batch.update(docSnap.ref, {
+                            overchargePaid: true,
+                            overchargeReceipt: receipt,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    } else {
+                        // Standard initial booking confirmation
+                        batch.update(docSnap.ref, {
+                            status: 'confirmed',
+                            paymentReceipt: receipt,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    }
                 });
                 await batch.commit();
             }
@@ -98,12 +116,22 @@ router.post('/callback', async (req, res) => {
             // Failed
             if (!snapshot.empty) {
                 const batch = db.batch();
-                snapshot.docs.forEach((doc) => {
-                    batch.update(doc.ref, {
-                        status: 'payment-failed',
-                        failureReason: callbackData.ResultDesc,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
+                snapshot.docs.forEach((docSnap) => {
+                    const bookingData = docSnap.data();
+                    
+                    if (bookingData.status === 'confirmed' || bookingData.checkedOut) {
+                        batch.update(docSnap.ref, {
+                            overchargePaymentFailed: true,
+                            overchargeFailureReason: callbackData.ResultDesc,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    } else {
+                        batch.update(docSnap.ref, {
+                            status: 'payment-failed',
+                            failureReason: callbackData.ResultDesc,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    }
                 });
                 await batch.commit();
             }

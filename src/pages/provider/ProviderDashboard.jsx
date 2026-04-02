@@ -5,7 +5,7 @@ import ProviderNav from '../../components/provider/ProviderNav';
 import { TrendingUp, Car, DollarSign, Shield, MapPin, ParkingCircle, Loader2 } from 'lucide-react';
 import { getLotByProvider } from '../../services/parkingService';
 import { db } from '../../config/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 
 export default function ProviderDashboard() {
     const { currentUser, userProfile } = useAuth();
@@ -19,10 +19,19 @@ export default function ProviderDashboard() {
 
     useEffect(() => {
         if (!currentUser) return;
-        getLotByProvider(currentUser.uid).then((data) => {
-            setLot(data);
+        const ref = doc(db, 'parking-lots', currentUser.uid);
+        const unsubscribe = onSnapshot(ref, (snap) => {
+            if (snap.exists()) {
+                setLot({ id: snap.id, ...snap.data() });
+            } else {
+                setLot(null);
+            }
+            setLoadingLot(false);
+        }, (err) => {
+            console.error('Snapshot err:', err);
             setLoadingLot(false);
         });
+        return () => unsubscribe();
     }, [currentUser]);
 
     useEffect(() => {
@@ -39,22 +48,85 @@ export default function ProviderDashboard() {
         return () => unsubscribe();
     }, [lot?.id]);
 
-    const hasLotSetup = lot && lot.capacity > 0 && lot.hourlyRate > 0;
+    function getBookingDates(b) {
+        if (!b) return null;
+        let startObj = new Date();
+        let endObj = new Date();
 
-    const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'active');
+        if (b.startTime?.seconds) {
+            startObj = new Date(b.startTime.seconds * 1000);
+            endObj = b.endTime?.seconds ? new Date(b.endTime.seconds * 1000) : startObj;
+        } else if (typeof b.startTime === 'string' && b.date) {
+            const [y, m, d] = b.date.split('-').map(Number);
+            startObj = new Date(y, m - 1, d);
+            endObj = new Date(y, m - 1, d);
+            
+            const [sh, sm] = b.startTime.split(':').map(Number);
+            const [eh, em] = (b.endTime || '00:00').split(':').map(Number);
+            
+            startObj.setHours(sh, sm, 0, 0);
+            if ((eh * 60 + em) <= (sh * 60 + sm)) {
+                 endObj.setDate(endObj.getDate() + 1);
+            }
+            endObj.setHours(eh, em, 0, 0);
+        } else if (b.startTime?.toDate) {
+            startObj = b.startTime.toDate();
+            endObj = b.endTime?.toDate ? b.endTime.toDate() : startObj;
+        } else {
+            return null; // fallback
+        }
+        return { start: startObj, end: endObj };
+    }
+
+    const hasLotSetup = lot && lot.capacity > 0 && lot.hourlyRate > 0;
+    const now = new Date();
+
+    const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'checked-in');
+    
+    // Calculate how many bookings are physically active right this minute
+    const currentlyOccupied = bookings.filter(b => {
+        if (b.status === 'checked-in') return true;
+        if (b.status !== 'confirmed') return false;
+        const dates = getBookingDates(b);
+        if (!dates) return false;
+        // Count it as occupied if we're past its start time but haven't hit the end time
+        return now >= dates.start && now <= dates.end;
+    }).length;
+
+    const liveAvailableSpots = hasLotSetup ? Math.max(0, lot.capacity - currentlyOccupied) : 0;
+
     const revenue = bookings
-        .filter(b => b.status === 'confirmed' || b.status === 'completed')
+        .filter(b => b.status === 'confirmed' || b.status === 'checked-in' || b.status === 'completed')
         .reduce((sum, b) => sum + (b.amount || 0), 0);
 
     const occupancyRate = hasLotSetup && lot.capacity > 0 
-        ? Math.min(100, Math.round((activeBookings.length / lot.capacity) * 100)) 
+        ? Math.min(100, Math.round((currentlyOccupied / lot.capacity) * 100)) 
         : 0;
 
     const stats = [
-        { label: 'Today\'s Bookings', value: activeBookings.length.toString(), icon: Car, color: 'bg-blue-50 text-blue-600' },
-        { label: 'Revenue (KSh)', value: revenue.toLocaleString(), icon: DollarSign, color: 'bg-emerald-50 text-emerald-600' },
-        { label: 'Occupancy', value: hasLotSetup ? `${occupancyRate}%` : '—', icon: TrendingUp, color: 'bg-teal-50 text-teal-600' },
+        { label: 'Live Occupancy', value: hasLotSetup ? `${occupancyRate}%` : '—', icon: TrendingUp, color: 'bg-teal-50 text-teal-600' },
+        { label: 'Total Active', value: activeBookings.length.toString(), icon: Car, color: 'bg-blue-50 text-blue-600' },
+        { label: 'Total Revenue', value: revenue.toLocaleString(), icon: DollarSign, color: 'bg-emerald-50 text-emerald-600' },
     ];
+
+    function formatTimeRange(b) {
+        if (!b.startTime) return '--:--';
+        if (typeof b.startTime === 'string') return `${b.startTime} - ${b.endTime}`;
+        if (b.startTime?.toDate) {
+            const s = b.startTime.toDate().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', hour12: false });
+            const e = b.endTime?.toDate ? b.endTime.toDate().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--';
+            return `${s} - ${e}`;
+        }
+        return '--:--';
+    }
+
+    function formatStatus(status) {
+        if (status === 'checked-in') return 'Checked IN (On Site)';
+        if (status === 'completed') return 'Checked OUT';
+        if (status === 'confirmed') return 'Reserved (Not arrived)';
+        if (status === 'cancelled') return 'Cancelled';
+        return status;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -130,10 +202,14 @@ export default function ProviderDashboard() {
                                         <MapPin className="w-3 h-3" /> {lot?.businessLocation || 'Location not set'}
                                     </p>
                                     <div className="flex items-center gap-3 mt-3 text-xs">
-                                        <span className="bg-gray-50 px-2.5 py-1 rounded-lg text-gray-600 font-medium">
-                                            {lot?.capacity} spaces
+                                        <span className="bg-gray-50 px-2.5 py-1 rounded-lg text-gray-600 font-medium whitespace-nowrap">
+                                            {lot?.capacity} total
                                         </span>
-                                        <span className="bg-teal-50 px-2.5 py-1 rounded-lg text-teal-700 font-medium">
+                                        <span className="bg-emerald-50 px-2.5 py-1 rounded-lg text-emerald-700 font-bold flex items-center gap-1.5 whitespace-nowrap">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            {liveAvailableSpots} slots free
+                                        </span>
+                                        <span className="bg-teal-50 px-2.5 py-1 rounded-lg text-teal-700 font-medium ml-auto">
                                             KSh {lot?.hourlyRate}/hr
                                         </span>
                                     </div>
@@ -164,13 +240,17 @@ export default function ProviderDashboard() {
                                     <div key={b.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between">
                                         <div>
                                             <p className="text-sm font-bold text-gray-900">{b.plateNumber || 'Unknown Vehicle'}</p>
-                                            <p className="text-xs text-gray-500 mt-0.5">
-                                                {b.startTime?.toDate?.()?.toLocaleTimeString('en-KE', {hour:'2-digit', minute:'2-digit'}) || '--:--'} - {b.endTime?.toDate?.()?.toLocaleTimeString('en-KE', {hour:'2-digit', minute:'2-digit'}) || '--:--'}
-                                            </p>
+                                            <p className="text-xs text-gray-500 mt-0.5">{formatTimeRange(b)}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-sm font-bold text-emerald-600">KSh {b.amount || 0}</p>
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase">{b.status}</span>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase mt-1 inline-block ${
+                                                b.status === 'checked-in' ? 'bg-blue-100 text-blue-700' :
+                                                b.status === 'completed' ? 'bg-gray-100 text-gray-600' :
+                                                'bg-amber-100 text-amber-700'
+                                            }`}>
+                                                {formatStatus(b.status)}
+                                            </span>
                                         </div>
                                     </div>
                                 ))}

@@ -1,19 +1,33 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useBookings from '../hooks/useBookings';
-import { ArrowUpRight, RefreshCw, Receipt, Loader2 } from 'lucide-react';
+import { ArrowUpRight, RefreshCw, Receipt, Loader2, Trash2 } from 'lucide-react';
+import { clearUserHistory } from '../services/bookingService';
 
 export default function History() {
   const { currentUser } = useAuth();
   const { bookings, loading } = useBookings(currentUser?.uid);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Clear all your past payment and booking history? This cannot be undone.')) return;
+    setClearing(true);
+    try {
+      await clearUserHistory(currentUser?.uid);
+    } catch (err) {
+      alert('Failed to clear history: ' + err.message);
+    } finally {
+      setClearing(false);
+    }
+  };
 
   // Derive transactions from bookings
   const transactions = bookings
-    .filter((b) => b.status === 'completed' || b.status === 'active')
+    .filter((b) => b.status === 'completed' || b.status === 'checked-in')
     .map((b) => ({
       id: b.id,
-      type: b.status === 'completed' ? 'completed' : 'active',
+      type: b.status === 'completed' ? 'completed' : 'checked-in',
       amount: b.amount || 0,
       description: `${b.lotName || 'Parking'} — ${b.plateNumber || 'N/A'}`,
       date: b.startTime?.seconds ? new Date(b.startTime.seconds * 1000) : (b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime || Date.now())),
@@ -48,7 +62,17 @@ export default function History() {
     <div className="min-h-screen bg-gray-50 pb-safe page-enter">
       {/* Header */}
       <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100">
-        <h1 className="text-xl font-bold text-gray-900 mb-4">Payment History</h1>
+        <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-bold text-gray-900">Payment History</h1>
+            <button
+                onClick={handleClearHistory}
+                disabled={clearing || transactions.length === 0}
+                className="text-gray-400 hover:text-red-600 disabled:opacity-50 transition p-2"
+                aria-label="Clear history"
+            >
+                {clearing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+            </button>
+        </div>
 
         <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
           <p className="text-teal-200 text-xs font-medium mb-1">Total Spent</p>

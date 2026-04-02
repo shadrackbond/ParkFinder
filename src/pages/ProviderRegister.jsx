@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Building2, Phone, MapPin, AlertCircle, ArrowLeft, CheckCircle2, Image, UserCircle } from 'lucide-react';
+import { getFirebaseAuthErrorMessage } from '../utils/firebaseError';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
 
@@ -96,7 +97,7 @@ export default function ProviderRegister() {
 
             setSuccess(true);
         } catch (err) {
-            setError(err.message.replace('Firebase: ', '').replace(/\(auth.*\)/, ''));
+            setError(getFirebaseAuthErrorMessage(err));
         } finally {
             setLoading(false);
         }
@@ -199,12 +200,12 @@ export default function ProviderRegister() {
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">Business Location</label>
                             <div className="relative">
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input type="text" value={businessLocation} 
+                                <input type="text" value={businessLocation}
                                     onChange={(e) => setBusinessLocation(e.target.value)}
                                     onFocus={() => setSearchActive(true)}
                                     onBlur={() => setTimeout(() => setSearchActive(false), 200)}
                                     className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition placeholder-gray-400" placeholder="e.g. Westlands, Nairobi" />
-                                
+
                                 {suggestions.length > 0 && searchActive && (
                                     <ul className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg z-50 overflow-hidden max-h-48 overflow-y-auto">
                                         {suggestions.map((s) => (

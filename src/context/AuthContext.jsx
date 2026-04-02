@@ -83,12 +83,15 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    let mounted = true;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
+      if (mounted) setCurrentUser(user);
 
       if (user) {
         try {
           const profile = await getUserProfile(user.uid);
+          if (!mounted) return;
           if (profile) {
             setUserRole(profile.role);
             setUserProfile(profile);
@@ -104,18 +107,24 @@ export function AuthProvider({ children }) {
           }
         } catch (err) {
           console.error('Failed to fetch user profile:', err);
+          if (!mounted) return;
           setUserRole('customer');
           setUserProfile(null);
         }
       } else {
-        setUserRole(null);
-        setUserProfile(null);
+        if (mounted) {
+          setUserRole(null);
+          setUserProfile(null);
+        }
       }
 
-      setLoading(false);
+      if (mounted) setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const value = {

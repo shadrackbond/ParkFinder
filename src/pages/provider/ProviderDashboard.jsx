@@ -103,6 +103,46 @@ export default function ProviderDashboard() {
         ? Math.min(100, Math.round((currentlyOccupied / lot.capacity) * 100)) 
         : 0;
 
+    // ── Today-only provider metrics ───────────────────────────────────────
+
+    const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    const todaysBookings = bookings.filter((b) => {
+        const dates = getBookingDates(b);
+        if (!dates) return false;
+        return dates.start.toISOString().slice(0, 10) === todayStr;
+    });
+
+    const todaysRevenue = todaysBookings
+        .filter((b) => b.status === 'confirmed' || b.status === 'checked-in' || b.status === 'completed')
+        .reduce((sum, b) => sum + (b.amount || 0), 0);
+
+    const carsNowToday = todaysBookings.filter((b) => {
+        if (b.status === 'checked-in') return true;
+        if (b.status !== 'confirmed') return false;
+        const dates = getBookingDates(b);
+        if (!dates) return false;
+        return now >= dates.start && now <= dates.end;
+    }).length;
+
+    const UPCOMING_WINDOW_MS = 60 * 60 * 1000; // next 1 hour
+
+    const upcomingArrivals = todaysBookings
+        .filter((b) => {
+            if (b.status !== 'confirmed') return false;
+            const dates = getBookingDates(b);
+            if (!dates) return false;
+            const startTime = dates.start.getTime();
+            const nowTime = now.getTime();
+            return startTime > nowTime && startTime - nowTime <= UPCOMING_WINDOW_MS;
+        })
+        .sort((a, b) => {
+            const aDate = getBookingDates(a)?.start?.getTime() ?? 0;
+            const bDate = getBookingDates(b)?.start?.getTime() ?? 0;
+            return aDate - bDate;
+        })
+        .slice(0, 4);
+
     const stats = [
         { label: 'Live Occupancy', value: hasLotSetup ? `${occupancyRate}%` : '—', icon: TrendingUp, color: 'bg-teal-50 text-teal-600' },
         { label: 'Total Active', value: activeBookings.length.toString(), icon: Car, color: 'bg-blue-50 text-blue-600' },
@@ -174,6 +214,68 @@ export default function ProviderDashboard() {
                             );
                         })}
                     </div>
+
+                    {/* Today Panel */}
+                    {hasLotSetup && (
+                        <div className="mb-6">
+                            <h2 className="text-sm font-bold text-gray-900 mb-2">Today</h2>
+                            <div className="bg-white rounded-2xl border border-gray-100 p-4">
+                                <div className="flex items-center justify-between text-xs">
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Revenue today</p>
+                                        <p className="text-base font-bold text-gray-900">
+                                            KSh {todaysRevenue.toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Cars now</p>
+                                        <p className="text-base font-bold text-gray-900">{carsNowToday}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Arrivals (next 1 hr)</p>
+                                        <p className="text-base font-bold text-gray-900">{upcomingArrivals.length}</p>
+                                    </div>
+                                </div>
+
+                                {upcomingArrivals.length > 0 ? (
+                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                        <p className="text-[11px] font-semibold text-gray-500 mb-2">
+                                            Upcoming arrivals
+                                        </p>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            {upcomingArrivals.map((b) => {
+                                                const dates = getBookingDates(b);
+                                                const startLabel = dates?.start
+                                                    ? dates.start.toLocaleTimeString('en-KE', {
+                                                          hour: '2-digit',
+                                                          minute: '2-digit',
+                                                      })
+                                                    : '--:--';
+                                                return (
+                                                    <div
+                                                        key={b.id}
+                                                        className="flex items-center justify-between text-[11px] bg-gray-50 rounded-lg px-3 py-2"
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold text-gray-800">
+                                                                {b.plateNumber || 'Unknown vehicle'}
+                                                            </span>
+                                                            <span className="text-gray-400">Spot #{b.spotNumber || '—'}</span>
+                                                        </div>
+                                                        <span className="text-gray-600 font-semibold">{startLabel}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="mt-3 text-[11px] text-gray-400">
+                                        No arrivals expected in the next hour.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* My Lot Preview */}
                     <div className="mb-6">

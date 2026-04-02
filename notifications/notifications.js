@@ -14,12 +14,20 @@
 
 const DEFAULT_DURATION_MS = 5000;
 
+// Gentle guard rails to avoid spamming users
+const RATE_LIMIT_MS = 3000; // minimum gap for same logical notification
+const BROWSER_NOTIFICATION_COOLDOWN_MS = 10000; // gap between browser popups
+
 const NOTIFICATION_TYPES = {
 	info: 'info',
 	success: 'success',
 	warning: 'warning',
 	error: 'error',
 };
+
+// Keep lightweight, in‑memory tracking only (per tab)
+const lastEmittedByKey = new Map();
+let lastBrowserNotificationTime = 0;
 
 // ─── Low‑level helpers (ping + browser Notification) ──────────────────────
 
@@ -57,6 +65,12 @@ function playPing(type = NOTIFICATION_TYPES.info) {
 function maybeShowBrowserNotification(title, body, type) {
 	if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
 
+	const now = Date.now();
+	if (now - lastBrowserNotificationTime < BROWSER_NOTIFICATION_COOLDOWN_MS) {
+		// Too soon since the last browser popup – skip this one.
+		return;
+	}
+
 	const show = () => {
 		try {
 			const icon =
@@ -66,6 +80,7 @@ function maybeShowBrowserNotification(title, body, type) {
 						? '/icons/error-96.png'
 						: '/icons/info-96.png';
 			new Notification(title, { body, icon });
+			lastBrowserNotificationTime = Date.now();
 		} catch {
 			// Best-effort only.
 		}
@@ -80,6 +95,36 @@ function maybeShowBrowserNotification(title, body, type) {
 	}
 }
 
+function getDedupeKey(payload) {
+	const baseKey = payload.key || 'generic';
+	const meta = payload.meta || {};
+	const instanceId =
+		meta.bookingId ||
+		meta.lotId ||
+		meta.id ||
+		'';
+	// Include message so different messages for same booking are not merged.
+	const msg = payload.message || '';
+	return `${baseKey}:${instanceId}:${msg}`;
+}
+
+function shouldSuppressNotification(payload) {
+	const now = Date.now();
+	const dedupeKey = getDedupeKey(payload);
+	const last = lastEmittedByKey.get(dedupeKey) || 0;
+	if (now - last < RATE_LIMIT_MS) {
+		return true;
+	}
+	lastEmittedByKey.set(dedupeKey, now);
+
+	// Very lightweight pruning if this somehow grows large.
+	if (lastEmittedByKey.size > 500) {
+		lastEmittedByKey.clear();
+	}
+
+	return false;
+}
+
 function emitAppNotification({ key, title, message, type, meta }) {
 	const payload = {
 		key,
@@ -89,6 +134,9 @@ function emitAppNotification({ key, title, message, type, meta }) {
 		meta: meta || {},
 		timestamp: Date.now(),
 	};
+
+	// Gentle rate limiting so duplicate events in tight loops don't spam.
+	if (shouldSuppressNotification(payload)) return;
 
 	// Console for debugging during development.
 	// eslint-disable-next-line no-console

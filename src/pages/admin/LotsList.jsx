@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
 import { getAllLots, deleteLot, toggleLotStatus } from '../../services/adminService';
-import { Loader2, ParkingCircle, MapPin, Trash2, Building2, CheckCircle, XCircle, Wand2 } from 'lucide-react';
-import { doc, getDocs, collection, query, where, updateDoc } from 'firebase/firestore';
+import { Loader2, ParkingCircle, MapPin, Trash2, Building2, CheckCircle, XCircle, Wand2, Zap } from 'lucide-react';
+import { getDocs, collection, query, where, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
 export default function LotsList() {
@@ -11,6 +11,7 @@ export default function LotsList() {
     const [deletingId, setDeletingId] = useState(null);
     const [confirmId, setConfirmId] = useState(null);
     const [togglingId, setTogglingId] = useState(null);
+    const [activatingAll, setActivatingAll] = useState(false);
 
     useEffect(() => { loadLots(); }, []);
 
@@ -31,6 +32,27 @@ export default function LotsList() {
             console.error('Failed to delete lot:', err);
         } finally {
             setDeletingId(null);
+        }
+    }
+
+    async function handleActivateAllApproved() {
+        if (!window.confirm('Activate all lots belonging to approved providers? This will make them visible to customers.')) return;
+        setActivatingAll(true);
+        try {
+            // Get all active providers
+            const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'provider'), where('status', '==', 'active')));
+            const approvedIds = new Set(usersSnap.docs.map(d => d.id));
+            // Get inactive lots whose providerId is in approvedIds
+            const lotsSnap = await getDocs(query(collection(db, 'parking-lots'), where('isActive', '==', false)));
+            const toActivate = lotsSnap.docs.filter(d => approvedIds.has(d.id));
+            await Promise.all(toActivate.map(d => updateDoc(d.ref, { isActive: true, updatedAt: serverTimestamp() })));
+            alert(`Activated ${toActivate.length} lot(s).`);
+            loadLots();
+        } catch (err) {
+            console.error('Failed to activate lots:', err);
+            alert('Error: ' + err.message);
+        } finally {
+            setActivatingAll(false);
         }
     }
 
@@ -70,6 +92,13 @@ export default function LotsList() {
                                 className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition"
                             >
                                 <Wand2 className="w-3.5 h-3.5" /> Fix Prism Hours
+                            </button>
+                            <button
+                                onClick={handleActivateAllApproved}
+                                disabled={activatingAll}
+                                className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition disabled:opacity-50"
+                            >
+                                {activatingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />} Activate Approved
                             </button>
                             <button onClick={loadLots} className="text-indigo-600 text-xs font-semibold">Refresh</button>
                         </div>

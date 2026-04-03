@@ -94,6 +94,21 @@ export default function HelpSupport() {
             ))}
           </div>
         </section>
+
+        {/* Legal Links */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Legal</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition text-left">
+              <span className="font-medium text-sm text-gray-800">Terms of Service</span>
+              <ChevronDown className="w-4 h-4 text-gray-300 -rotate-90" />
+            </button>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition text-left">
+              <span className="font-medium text-sm text-gray-800">Privacy Policy</span>
+              <ChevronDown className="w-4 h-4 text-gray-300 -rotate-90" />
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   );

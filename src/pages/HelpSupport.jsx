@@ -1,4 +1,4 @@
-import { ArrowLeft, Mail, Phone, MessageCircle, ChevronDown, Info } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MessageCircle, ChevronDown, Info, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
@@ -121,6 +121,26 @@ export default function HelpSupport() {
               <p className="font-semibold text-sm text-gray-900">ParkFinder</p>
               <p className="text-xs text-gray-500 mt-0.5">Version 1.0.0 &middot; &copy; 2025 ParkFinder Kenya</p>
             </div>
+          </div>
+        </section>
+
+        {/* Quick Tips */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Quick Tips</h2>
+          <div className="space-y-2">
+            {[
+              { tip: 'Enable location to find nearby parking faster.' },
+              { tip: 'Book in advance to secure your preferred spot.' },
+              { tip: 'Check your booking history for past receipts.' },
+              { tip: 'Use the QR code in your booking to check in at the lot.' },
+            ].map((item, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 flex items-start gap-3">
+                <div className="w-6 h-6 bg-teal-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Zap className="w-3.5 h-3.5 text-teal-600" />
+                </div>
+                <p className="text-sm text-gray-600">{item.tip}</p>
+              </div>
+            ))}
           </div>
         </section>
       </div>

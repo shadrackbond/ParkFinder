@@ -10,6 +10,7 @@ import Home from './pages/Home';
 import Bookings from './pages/Bookings';
 import History from './pages/History';
 import Profile from './pages/Profile';
+import HelpSupport from './pages/HelpSupport';
 
 import ProviderDashboard from './pages/provider/ProviderDashboard';
 import LotManager from './pages/provider/LotManager';
@@ -37,7 +38,7 @@ function SmartRedirect() {
 function App() {
   // Wake-up ping for Render free-tier
   useEffect(() => {
-    axios.get('https://parkfinder-hwy4.onrender.com/health-check').catch(() => {});
+    axios.get('https://parkfinder-hwy4.onrender.com/health-check').catch(() => { });
   }, []);
 
   return (
@@ -52,6 +53,7 @@ function App() {
             <Route path="/bookings" element={<PrivateRoute><Bookings /></PrivateRoute>} />
             <Route path="/history" element={<PrivateRoute><History /></PrivateRoute>} />
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+            <Route path="/help" element={<PrivateRoute><HelpSupport /></PrivateRoute>} />
 
             <Route path="/provider" element={<RoleRoute allowedRoles={['provider']}><ProviderDashboard /></RoleRoute>} />
             <Route path="/provider/lots" element={<RoleRoute allowedRoles={['provider']}><LotManager /></RoleRoute>} />

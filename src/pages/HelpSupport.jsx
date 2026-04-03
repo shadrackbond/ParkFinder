@@ -1,8 +1,29 @@
-import { ArrowLeft, Mail, Phone, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MessageCircle, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+
+const faqs = [
+  {
+    q: 'How do I book a parking spot?',
+    a: 'Search for a lot on the main map, select an available spot, and tap "Book Now" to complete the reservation.',
+  },
+  {
+    q: 'Can I cancel my reservation?',
+    a: 'Yes, you can cancel your reservation up to 30 minutes before your scheduled arrival time for a full refund.',
+  },
+  {
+    q: 'What payment methods are supported?',
+    a: 'We support major credit cards, Mobile Money (M-Pesa), and in-app wallet balance.',
+  },
+  {
+    q: 'How do I become a parking provider?',
+    a: 'Register using the Provider sign-up option, fill in your business details, and wait for admin approval — usually within 24 hours.',
+  },
+];
 
 export default function HelpSupport() {
   const navigate = useNavigate();
+  const [openFaq, setOpenFaq] = useState(null);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -48,6 +69,29 @@ export default function HelpSupport() {
                 <p className="text-xs text-gray-500 mt-0.5">Typically replies in minutes</p>
               </div>
             </button>
+          </div>
+        </section>
+
+        {/* FAQs */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Frequently Asked Questions</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+            {faqs.map((faq, idx) => (
+              <div key={idx} className="overflow-hidden">
+                <button
+                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition"
+                >
+                  <span className="font-medium text-sm text-gray-800 pr-4">{faq.q}</span>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${openFaq === idx ? 'rotate-180' : ''}`} />
+                </button>
+                {openFaq === idx && (
+                  <div className="px-4 pb-4 text-sm text-gray-500 leading-relaxed bg-gray-50/50">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </section>
       </div>

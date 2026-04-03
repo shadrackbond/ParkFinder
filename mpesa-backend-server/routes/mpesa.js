@@ -74,12 +74,6 @@ router.post('/callback', async (req, res) => {
 
         const db = admin.firestore();
         const bookingsRef = db.collection('bookings');
-        
-        // We set AccountReference = bookingId in the stk push request
-        // Safaricom passes it back in the CallbackMetadata or we can grab it if needed.
-        // Wait, STK push callback doesn't always include AccountReference easily in the body.
-        // It's safer to query by checkoutRequestId since we save it when initiating.
-        const checkoutRequestId = callbackData.CheckoutRequestID;
         const q = bookingsRef.where('checkoutRequestId', '==', checkoutRequestId);
         const snapshot = await q.get();
 

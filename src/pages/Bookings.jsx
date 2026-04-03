@@ -73,7 +73,7 @@ export default function Bookings() {
 
                 {/* Status Filters */}
                 <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-                    {['all', 'confirmed', 'completed', 'cancelled'].map((status) => (
+                    {['all', 'confirmed', 'checked-in', 'completed', 'cancelled'].map((status) => (
                         <button
                             key={status}
                             onClick={() => setStatusFilter(status)}

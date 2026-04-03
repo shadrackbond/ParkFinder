@@ -30,7 +30,13 @@ export default function History() {
       type: b.status === 'completed' ? 'completed' : 'checked-in',
       amount: b.amount || 0,
       description: `${b.lotName || 'Parking'} — ${b.plateNumber || 'N/A'}`,
-      date: b.startTime?.seconds ? new Date(b.startTime.seconds * 1000) : (b.startTime?.toDate ? b.startTime.toDate() : new Date(b.startTime || Date.now())),
+      date: b.startTime?.seconds
+        ? new Date(b.startTime.seconds * 1000)
+        : b.startTime?.toDate
+        ? b.startTime.toDate()
+        : (b.date && typeof b.startTime === 'string'
+          ? (() => { const [y,mo,d] = b.date.split('-').map(Number); const [h,m] = b.startTime.split(':').map(Number); return new Date(y, mo-1, d, h, m); })()
+          : new Date(b.createdAt?.seconds ? b.createdAt.seconds * 1000 : Date.now())),
       lotImage: b.lotImage || '',
       paymentReceipt: b.paymentReceipt || null
     }));

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/common/BottomNav';
 import ProviderNav from '../components/provider/ProviderNav';
 import { updateUserProfile } from '../services/userService';
-import { LogOut, User, Mail, Shield, ChevronRight, Bell, HelpCircle, Settings, Edit3, Image, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { LogOut, User, Mail, Shield, ChevronRight, Bell, HelpCircle, Edit3, Image, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
 
@@ -169,7 +169,6 @@ export default function Profile() {
 
   const menuItems = [
     { label: 'Notifications', icon: Bell },
-    { label: 'Settings', icon: Settings },
     { label: 'Help & Support', icon: HelpCircle },
   ];
 

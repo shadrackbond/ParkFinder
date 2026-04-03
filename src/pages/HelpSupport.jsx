@@ -1,4 +1,4 @@
-import { ArrowLeft, Mail, Phone, MessageCircle, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MessageCircle, ChevronDown, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
@@ -107,6 +107,20 @@ export default function HelpSupport() {
               <span className="font-medium text-sm text-gray-800">Privacy Policy</span>
               <ChevronDown className="w-4 h-4 text-gray-300 -rotate-90" />
             </button>
+          </div>
+        </section>
+
+        {/* App Info */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">About</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Info className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-gray-900">ParkFinder</p>
+              <p className="text-xs text-gray-500 mt-0.5">Version 1.0.0 &middot; &copy; 2025 ParkFinder Kenya</p>
+            </div>
           </div>
         </section>
       </div>

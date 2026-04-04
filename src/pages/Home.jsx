@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bell, MapPin, Heart, Clock, Navigation, Star, ParkingCircle, X, Search, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
@@ -7,6 +7,7 @@ import BookingModal from '../components/booking/BookingModal';
 import useBookings from '../hooks/useBookings';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
+const NEARBY_RADIUS_KM = 10;
 
 /** Load the Google Maps JS script once, return a promise that resolves when ready */
 function loadGoogleMapsScript() {
@@ -23,6 +24,77 @@ function loadGoogleMapsScript() {
         document.head.appendChild(script);
     });
     return window._googleMapsPromise;
+}
+
+function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('Geolocation is not supported on this device.'));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                resolve({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                });
+            },
+            (error) => reject(error),
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 300000,
+            }
+        );
+    });
+}
+
+function calculateDistanceKm(a, b) {
+    const toRad = (value) => (value * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+
+    const haversine =
+        Math.sin(dLat / 2) ** 2 +
+        Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+
+    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function hasLotCoordinates(lot) {
+    return typeof lot.latitude === 'number' && typeof lot.longitude === 'number';
+}
+
+function getLocationErrorMessage(error, hasSavedLocation) {
+    if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return 'Nearby needs HTTPS or localhost to access your location.';
+    }
+
+    if (error?.code === 1) {
+        return hasSavedLocation
+            ? 'Live location access was denied. Showing results from your last saved location instead.'
+            : 'Location access was denied. Allow location access to use Nearby.';
+    }
+
+    if (error?.code === 2) {
+        return hasSavedLocation
+            ? 'Your current location could not be determined. Showing results from your last saved location instead.'
+            : 'Your current location could not be determined right now.';
+    }
+
+    if (error?.code === 3) {
+        return hasSavedLocation
+            ? 'Location request timed out. Showing results from your last saved location instead.'
+            : 'Location request timed out. Please try Nearby again.';
+    }
+
+    return hasSavedLocation
+        ? 'Unable to get your live location right now. Showing results from your last saved location instead.'
+        : 'Unable to get your current location right now.';
 }
 
 export default function Home() {
@@ -92,11 +164,15 @@ export default function Home() {
 
     const [search, setSearch] = useState('');
     const [searchActive, setSearchActive] = useState(false);
-    const [searchLoading, setSearchLoading] = useState(false);
     const [suggestions, setSuggestions] = useState([]);
     const [selectedPlace, setSelectedPlace] = useState(null);  // { name, lat, lng }
     const [filteredLots, setFilteredLots] = useState(null);      // null = show all
     const [selectedLotForBooking, setSelectedLotForBooking] = useState(null);
+    const [quickAction, setQuickAction] = useState('all');
+    const [quickActionLoading, setQuickActionLoading] = useState(false);
+    const [quickActionMessage, setQuickActionMessage] = useState('');
+    const [quickActionError, setQuickActionError] = useState('');
+    const [nearbyLots, setNearbyLots] = useState([]);
 
     const autocompleteService = useRef(null);
     const inputRef = useRef(null);
@@ -133,6 +209,9 @@ export default function Home() {
         return () => clearTimeout(timer);
     }, [search]);
 
+    const baseLots = filteredLots !== null ? filteredLots : lots;
+    const displayLots = quickAction === 'nearby' ? nearbyLots : baseLots;
+
     const matchLotsToPlace = (placeName) => {
         if (!placeName) { setFilteredLots(null); return; }
         const terms = placeName.toLowerCase().split(/[\s,]+/).filter(Boolean);
@@ -157,10 +236,87 @@ export default function Home() {
         setSuggestions([]);
         setSelectedPlace(null);
         setFilteredLots(null);
+        if (quickAction === 'nearby') {
+            setNearbyLots([]);
+            setQuickAction('all');
+        }
+        setQuickActionMessage('');
+        setQuickActionError('');
         setSearchActive(false);
     }
 
-    const displayLots = filteredLots !== null ? filteredLots : lots;
+    async function handleNearbyAction() {
+        if (quickAction === 'nearby') {
+            setQuickAction('all');
+            setNearbyLots([]);
+            setQuickActionMessage('');
+            setQuickActionError('');
+            return;
+        }
+
+        setQuickAction('nearby');
+        setQuickActionLoading(true);
+        setQuickActionError('');
+        setQuickActionMessage('');
+
+        try {
+            const coords = await getCurrentPosition();
+
+            const lotsWithCoords = baseLots
+                .filter(hasLotCoordinates)
+                .map((lot) => ({
+                    ...lot,
+                    distanceKm: calculateDistanceKm(coords, {
+                        lat: lot.latitude,
+                        lng: lot.longitude,
+                    }),
+                }))
+                .sort((a, b) => a.distanceKm - b.distanceKm);
+
+            const lotsWithinRadius = lotsWithCoords.filter((lot) => lot.distanceKm <= NEARBY_RADIUS_KM);
+            const nextNearbyLots = lotsWithinRadius.length ? lotsWithinRadius : lotsWithCoords.slice(0, 10);
+
+            setNearbyLots(nextNearbyLots);
+
+            if (!nextNearbyLots.length) {
+                setQuickActionMessage(
+                    'No available parking lots have saved map coordinates yet. Providers need to add coordinates to their lot first.'
+                );
+            } else if (!lotsWithinRadius.length) {
+                setQuickActionMessage('Showing the closest parking options with saved map coordinates.');
+            } else {
+                setQuickActionMessage(`Showing parking within ${NEARBY_RADIUS_KM} km of your current location.`);
+            }
+        } catch (error) {
+            console.error('Nearby action failed:', error);
+            setNearbyLots([]);
+            setQuickActionError(getLocationErrorMessage(error, false));
+        } finally {
+            setQuickActionLoading(false);
+        }
+    }
+
+    const availableTitle = quickAction === 'nearby'
+        ? 'Parking Near You'
+        : (selectedPlace ? `Parking near "${selectedPlace.name}"` : 'Available Parking');
+
+    const emptyState = quickAction === 'nearby'
+        ? {
+            title: 'No nearby parking found',
+            detail: quickActionError || 'Nearby works when your location and the parking lots\' saved map coordinates are available.',
+            action: 'Show all parking',
+        }
+        : selectedPlace
+            ? {
+                title: `No parking found near "${selectedPlace.name}"`,
+                detail: 'Try a different location or browse all available lots.',
+                action: 'Browse all parking',
+            }
+            : {
+                title: 'No parking spots available yet',
+                detail: 'New providers will appear here once approved.',
+                action: null,
+            };
 
     return (
         <div className="min-h-screen bg-gray-50 pb-safe page-enter">
@@ -255,24 +411,46 @@ export default function Home() {
                         { icon: Heart, label: 'Favorites', color: 'bg-rose-50 text-rose-500' },
                         { icon: Clock, label: 'Recent', color: 'bg-indigo-50 text-indigo-500' },
                     ].map(({ icon: Icon, label, color }) => (
-                        <button key={label} className="bg-white rounded-xl p-3.5 border border-gray-100 hover:shadow-card transition group">
+                        <button
+                            key={label}
+                            onClick={label === 'Nearby' ? handleNearbyAction : undefined}
+                            className={`bg-white rounded-xl p-3.5 border transition group ${
+                                quickAction === label.toLowerCase()
+                                    ? 'border-transparent shadow-card'
+                                    : 'border-gray-100 hover:shadow-card'
+                            }`}
+                        >
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2 ${color}`}>
-                                <Icon className="w-5 h-5" />
+                                {quickActionLoading && label === 'Nearby'
+                                    ? <Loader2 className="w-5 h-5 animate-spin" />
+                                    : <Icon className="w-5 h-5" />}
                             </div>
                             <p className="text-xs font-semibold text-gray-700">{label}</p>
                         </button>
                     ))}
                 </div>
+                {(quickAction === 'nearby' && (quickActionMessage || quickActionError)) && (
+                    <div className={`mt-3 rounded-xl px-3 py-2 text-xs font-medium ${quickActionError ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-teal-50 text-teal-700 border border-teal-100'}`}>
+                        {quickActionError || quickActionMessage}
+                    </div>
+                )}
             </div>
 
             {/* Available Parking Spots */}
             <div className="px-5 mt-6 max-w-lg">
                 <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-bold text-gray-900">
-                        {selectedPlace ? `Parking near "${selectedPlace.name}"` : 'Available Parking'}
-                    </h2>
-                    {selectedPlace && (
-                        <button onClick={handleClearSearch} className="text-xs text-teal-600 font-semibold">
+                    <h2 className="text-sm font-bold text-gray-900">{availableTitle}</h2>
+                    {(selectedPlace || quickAction !== 'all') && (
+                        <button
+                            onClick={() => {
+                                setQuickAction('all');
+                                setQuickActionMessage('');
+                                setQuickActionError('');
+                                setNearbyLots([]);
+                                if (selectedPlace) handleClearSearch();
+                            }}
+                            className="text-xs text-teal-600 font-semibold"
+                        >
                             Show all
                         </button>
                     )}
@@ -291,20 +469,22 @@ export default function Home() {
                         <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                             <ParkingCircle className="w-6 h-6 text-gray-400" />
                         </div>
-                        {selectedPlace ? (
-                            <>
-                                <p className="text-gray-600 font-medium text-sm">No parking found near</p>
-                                <p className="text-gray-800 font-bold text-sm mt-0.5">"{selectedPlace.name}"</p>
-                                <p className="text-gray-400 text-xs mt-2">Try a different location or browse all available lots.</p>
-                                <button onClick={handleClearSearch} className="mt-4 text-teal-600 text-xs font-semibold">
-                                    Browse all parking →
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-gray-600 font-medium text-sm">No parking spots available yet</p>
-                                <p className="text-gray-400 text-xs mt-1">New providers will appear here once approved</p>
-                            </>
+                        <p className="text-gray-600 font-medium text-sm">{emptyState.title}</p>
+                        <p className="text-gray-400 text-xs mt-2">{emptyState.detail}</p>
+                        {emptyState.action && (
+                            <button
+                                onClick={() => {
+                                    setQuickAction('all');
+                                    setQuickActionMessage('');
+                                    setQuickActionError('');
+                                    setNearbyLots([]);
+                                    setSelectedPlace(null);
+                                    setFilteredLots(null);
+                                }}
+                                className="mt-4 text-teal-600 text-xs font-semibold"
+                            >
+                                {emptyState.action} →
+                            </button>
                         )}
                     </div>
                 ) : (
@@ -345,21 +525,30 @@ export default function Home() {
                                     )}
 
                                     <div className="p-4">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <h3 className="font-bold text-gray-900 text-sm">{spot.name}</h3>
-                                            <span className="bg-teal-50 text-teal-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                                        <div className="flex items-start justify-between gap-3 mb-1">
+                                            <div className="min-w-0">
+                                                <h3 className="font-bold text-gray-900 text-sm truncate">{spot.name}</h3>
+                                                <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                                                    <MapPin className="w-3 h-3" /> {spot.address}
+                                                </p>
+                                            </div>
+                                            <span className="bg-teal-50 text-teal-700 text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0">
                                                 KSh {spot.hourlyRate}/hr
                                             </span>
                                         </div>
-                                        <p className="text-xs text-gray-400 flex items-center gap-1 mb-3">
-                                            <MapPin className="w-3 h-3" /> {spot.address}
-                                        </p>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3 text-xs">
+                                        <div className="flex items-center justify-between mt-3">
+                                            <div className="flex items-center gap-3 text-xs flex-wrap">
                                                 <span className="text-amber-500 font-semibold flex items-center gap-0.5">
                                                     <Star className="w-3 h-3 fill-amber-400 stroke-amber-400" /> {spot.rating}
                                                 </span>
                                                 <span className="text-emerald-600 font-semibold">{spot.availableSpots} slots</span>
+                                                {typeof spot.distanceKm === 'number' && (
+                                                    <span className="text-teal-600 font-semibold">
+                                                        {spot.distanceKm < 1
+                                                            ? `${Math.round(spot.distanceKm * 1000)} m away`
+                                                            : `${spot.distanceKm.toFixed(1)} km away`}
+                                                    </span>
+                                                )}
                                             </div>
                                             <button
                                                 disabled={isFull}

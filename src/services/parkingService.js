@@ -39,6 +39,15 @@ import { db } from '../config/firebase';
 
 const LOTS_COLLECTION = 'parking-lots';
 
+function parseCoordinate(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+}
+
 function mapLotDoc(d) {
     const data = d.data();
     return {
@@ -46,6 +55,8 @@ function mapLotDoc(d) {
         providerId: data.providerId,
         name: data.businessName || 'Unnamed Lot',
         address: data.businessLocation || 'Nairobi',
+        latitude: parseCoordinate(data.latitude),
+        longitude: parseCoordinate(data.longitude),
         imageUrl: data.lotImages?.[0] || data.businessImage || '',
         lotImages: data.lotImages || (data.businessImage ? [data.businessImage] : []),
         hourlyRate: data.hourlyRate || 100,

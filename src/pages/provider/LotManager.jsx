@@ -26,6 +26,27 @@ function loadGoogleMapsScript() {
 
 const MAX_IMAGES = 4;
 
+function formatCoordinatePair(latitude, longitude) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return '';
+    return `${latitude}, ${longitude}`;
+}
+
+function parseCoordinatePair(value) {
+    if (!value || typeof value !== 'string') return null;
+
+    const match = value.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (!match) return null;
+
+    const latitude = Number(match[1]);
+    const longitude = Number(match[2]);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    if (latitude < -90 || latitude > 90) return null;
+    if (longitude < -180 || longitude > 180) return null;
+
+    return { latitude, longitude };
+}
+
 function compressImage(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -88,6 +109,7 @@ export default function LotManager() {
     const [loadingLot, setLoadingLot] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [saveError, setSaveError] = useState('');
     const [clearing, setClearing] = useState(false);
     const [showUrlInput, setShowUrlInput] = useState(false);
     const [urlValue, setUrlValue] = useState('');
@@ -96,6 +118,9 @@ export default function LotManager() {
     const [formData, setFormData] = useState({
         businessName: '',
         businessLocation: '',
+        coordinateInput: '',
+        latitude: null,
+        longitude: null,
         capacity: '',
         hourlyRate: '',
         description: '',
@@ -107,10 +132,12 @@ export default function LotManager() {
     const [suggestions, setSuggestions] = useState([]);
     const [searchActive, setSearchActive] = useState(false);
     const autocompleteService = useRef(null);
+    const geocoderRef = useRef(null);
 
     useEffect(() => {
         loadGoogleMapsScript().then(() => {
             autocompleteService.current = new window.google.maps.places.AutocompleteService();
+            geocoderRef.current = new window.google.maps.Geocoder();
         }).catch(() => console.error('Failed to load Google Maps'));
     }, []);
 
@@ -134,8 +161,46 @@ export default function LotManager() {
         return () => clearTimeout(timer);
     }, [formData.businessLocation, searchActive]);
 
-    function handleSelectSuggestion(prediction) {
-        setFormData({ ...formData, businessLocation: prediction.description });
+    async function geocodeLocation(address) {
+        const directCoords = parseCoordinatePair(address);
+        if (directCoords) return directCoords;
+        if (!geocoderRef.current || !address?.trim()) return null;
+
+        return new Promise((resolve) => {
+            const timeoutId = window.setTimeout(() => resolve(null), 4000);
+
+            geocoderRef.current.geocode(
+                { address, region: 'KE' },
+                (results, status) => {
+                    window.clearTimeout(timeoutId);
+                    if (status !== 'OK' || !results?.[0]?.geometry?.location) {
+                        resolve(null);
+                        return;
+                    }
+
+                    const location = results[0].geometry.location;
+                    resolve({
+                        latitude: location.lat(),
+                        longitude: location.lng(),
+                    });
+                }
+            );
+        });
+    }
+
+    async function handleSelectSuggestion(prediction) {
+        const nextAddress = prediction.description;
+        const coords = await geocodeLocation(nextAddress);
+
+        setFormData((current) => ({
+            ...current,
+            businessLocation: nextAddress,
+            coordinateInput: coords
+                ? formatCoordinatePair(coords.latitude, coords.longitude)
+                : current.coordinateInput,
+            latitude: coords?.latitude ?? current.latitude ?? null,
+            longitude: coords?.longitude ?? current.longitude ?? null,
+        }));
         setSuggestions([]);
         setSearchActive(false);
     }
@@ -151,6 +216,9 @@ export default function LotManager() {
                 setFormData({
                     businessName: data.businessName || '',
                     businessLocation: data.businessLocation || '',
+                    coordinateInput: formatCoordinatePair(data.latitude, data.longitude),
+                    latitude: typeof data.latitude === 'number' ? data.latitude : null,
+                    longitude: typeof data.longitude === 'number' ? data.longitude : null,
                     capacity: data.capacity || '',
                     hourlyRate: data.hourlyRate || '',
                     description: data.description || '',
@@ -226,10 +294,29 @@ export default function LotManager() {
         e.preventDefault();
         try {
             setSaving(true);
+            setSaveError('');
             const capacity = Number(formData.capacity) || 0;
+            const directCoords = parseCoordinatePair(formData.coordinateInput);
+            let latitude = directCoords?.latitude ?? (typeof formData.latitude === 'number' ? formData.latitude : null);
+            let longitude = directCoords?.longitude ?? (typeof formData.longitude === 'number' ? formData.longitude : null);
+
+            if ((latitude === null || longitude === null) && formData.businessLocation.trim()) {
+                try {
+                    const coords = await geocodeLocation(formData.businessLocation);
+                    if (coords) {
+                        latitude = coords.latitude;
+                        longitude = coords.longitude;
+                    }
+                } catch (error) {
+                    console.error('Failed to geocode lot location:', error);
+                }
+            }
+
             const lotData = {
                 businessName: formData.businessName,
                 businessLocation: formData.businessLocation,
+                latitude,
+                longitude,
                 capacity,
                 hourlyRate: Number(formData.hourlyRate) || 0,
                 description: formData.description,
@@ -254,6 +341,7 @@ export default function LotManager() {
             }, 1200);
         } catch (err) {
             console.error('Failed to update lot:', err);
+            setSaveError('Unable to save your lot right now. Please try again.');
         } finally {
             setSaving(false);
         }
@@ -424,7 +512,14 @@ export default function LotManager() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Location</label>
                                     <div className="relative">
                                         <input type="text" value={formData.businessLocation}
-                                            onChange={(e) => setFormData({ ...formData, businessLocation: e.target.value })}
+                                            onChange={(e) => {
+                                                const nextLocation = e.target.value;
+
+                                                setFormData({
+                                                    ...formData,
+                                                    businessLocation: nextLocation,
+                                                });
+                                            }}
                                             onFocus={() => setSearchActive(true)}
                                             onBlur={() => setTimeout(() => setSearchActive(false), 200)}
                                             className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm"
@@ -446,6 +541,32 @@ export default function LotManager() {
                                             </ul>
                                         )}
                                     </div>
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                        Keep this as the readable address customers should see on the app.
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Coordinates</label>
+                                    <input
+                                        type="text"
+                                        value={formData.coordinateInput}
+                                        onChange={(e) => {
+                                            const nextCoordinateInput = e.target.value;
+                                            const directCoords = parseCoordinatePair(nextCoordinateInput);
+
+                                            setFormData({
+                                                ...formData,
+                                                coordinateInput: nextCoordinateInput,
+                                                latitude: directCoords?.latitude ?? null,
+                                                longitude: directCoords?.longitude ?? null,
+                                            });
+                                        }}
+                                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm"
+                                        placeholder="-1.2175, 36.8880"
+                                    />
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                        Use this for Nearby accuracy. It is stored in the backend and not shown as the public location label.
+                                    </p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
@@ -497,6 +618,10 @@ export default function LotManager() {
                                     <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
                                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                                         <p className="text-sm text-emerald-700 font-medium">Lot details saved!</p>
+                                    </div>
+                                ) : saveError ? (
+                                    <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+                                        <p className="text-sm text-red-700 font-medium">{saveError}</p>
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">

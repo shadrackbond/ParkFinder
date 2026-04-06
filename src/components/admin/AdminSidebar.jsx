@@ -53,13 +53,18 @@ export default function AdminSidebar() {
                         const isActive = location.pathname === item.path;
                         return (
                             <button key={item.name} onClick={() => navigate(item.path)}
-                                className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg transition min-w-[56px] ${isActive ? 'text-indigo-600' : 'text-gray-400'
+                                className={`flex flex-col items-center gap-0.5 px-1 sm:px-3 py-2 rounded-lg transition min-w-[48px] sm:min-w-[56px] ${isActive ? 'text-indigo-600' : 'text-gray-400'
                                     }`}>
                                 <Icon className="w-5 h-5" />
                                 <span className="text-[10px] font-semibold">{item.name}</span>
                             </button>
                         );
                     })}
+                    <button onClick={handleLogout}
+                        className="flex flex-col items-center gap-0.5 px-1 sm:px-3 py-2 rounded-lg transition min-w-[48px] sm:min-w-[56px] text-red-400">
+                        <LogOut className="w-5 h-5" />
+                        <span className="text-[10px] font-semibold">Exit</span>
+                    </button>
                 </div>
             </div>
         </>

@@ -79,20 +79,7 @@ export default function LotsList() {
                             <p className="text-gray-400 text-xs mt-0.5">{lots.length} total lots</p>
                         </div>
                     <div className="flex flex-wrap gap-2 justify-end">
-                            <button 
-                                onClick={async () => {
-                                    const q = query(collection(db, 'parking-lots'), where('businessName', '==', 'Prism Tower Parking'));
-                                    const snap = await getDocs(q);
-                                    for (const d of snap.docs) {
-                                        await updateDoc(d.ref, { openTime: '07:00', closeTime: '21:00' });
-                                    }
-                                    alert('Prism Tower Updated to 7am-9pm!');
-                                    loadLots();
-                                }}
-                                className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition"
-                            >
-                                <Wand2 className="w-3.5 h-3.5" /> Fix Prism Hours
-                            </button>
+
                             <button
                                 onClick={handleActivateAllApproved}
                                 disabled={activatingAll}

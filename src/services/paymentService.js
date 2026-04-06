@@ -28,7 +28,6 @@
  * //    to receive payment confirmations.
  */
 export async function processMpesaPayment() {
-    console.warn('processMpesaPayment() is a placeholder — implement via Cloud Function');
     return {
         checkoutRequestId: `sim_${Date.now()}`,
         merchantRequestId: `mr_${Date.now()}`,
@@ -47,7 +46,6 @@ export async function processMpesaPayment() {
  * // 2. Function should query M-Pesa Transaction Status API.
  */
 export async function checkPaymentStatus() {
-    console.warn('checkPaymentStatus() is a placeholder');
     return { status: 'success' };
 }
 
@@ -62,7 +60,6 @@ export async function checkPaymentStatus() {
  * // 2. If no wallet doc exists, return { balance: 0 }.
  */
 export async function getWalletBalance() {
-    console.warn('getWalletBalance() is a placeholder');
     return { balance: 2500, currency: 'KES' };
 }
 
@@ -77,7 +74,6 @@ export async function getWalletBalance() {
  * // 2. Order by timestamp descending.
  */
 export async function getTransactionHistory() {
-    console.warn('getTransactionHistory() is a placeholder');
     return [
         { id: 'tx_001', type: 'payment', amount: -200, description: 'Westlands Mall - 2hrs', date: new Date() },
         { id: 'tx_002', type: 'topup', amount: 1000, description: 'M-Pesa Top Up', date: new Date(Date.now() - 86400000) },

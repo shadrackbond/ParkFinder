@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
 import useBookings from '../hooks/useBookings';
-import { ArrowUpRight, RefreshCw, Receipt, Loader2, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Receipt, Loader2, Trash2 } from 'lucide-react';
 import { clearUserHistory } from '../services/bookingService';
 
 export default function History() {

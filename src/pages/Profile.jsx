@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import BottomNav from '../components/common/BottomNav';
 import ProviderNav from '../components/provider/ProviderNav';
 import { updateUserProfile } from '../services/userService';
 import { LogOut, User, Mail, Shield, ChevronRight, Bell, HelpCircle, Edit3, Image, AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -227,7 +226,7 @@ export default function Profile() {
 
           {/* Edit Profile Modal */}
           {editing && (
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4"
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4 transition-opacity"
               onClick={(e) => { if (e.target === e.currentTarget) setEditing(false); }}>
               <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md shadow-float flex flex-col bottom-sheet-enter"
                 style={{ maxHeight: '92dvh' }}
@@ -359,9 +358,6 @@ export default function Profile() {
           </div>
         </div>
       </main>
-
-      {/* Customer gets bottom nav */}
-      {!isProvider && !isAdmin && <BottomNav />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, MapPin, Heart, Clock, Navigation, Star, ParkingCircle, X, Search, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import BottomNav from '../components/common/BottomNav';
+
 import useParkingLots from '../hooks/useParkingLots';
 import BookingModal from '../components/booking/BookingModal';
 import useBookings from '../hooks/useBookings';
@@ -843,7 +843,6 @@ export default function Home() {
                 )}
             </div>
 
-            <BottomNav />
 
             <BookingModal
                 isOpen={!!selectedLotForBooking}

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import BottomNav from '../components/common/BottomNav';
 import BookingCard from '../components/booking/BookingCard';
 import QRTicket from '../components/booking/QRTicket';
 import useBookings from '../hooks/useBookings';
@@ -135,7 +134,6 @@ export default function Bookings() {
                 <QRTicket booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
             )}
 
-            <BottomNav />
         </div>
     );
 }

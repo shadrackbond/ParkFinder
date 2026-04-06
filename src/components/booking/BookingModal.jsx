@@ -314,7 +314,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 bg-black/50 backdrop-blur-sm"
+                className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 bg-black/50 transition-opacity"
                 onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             >
                 <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md flex flex-col shadow-2xl bottom-sheet-enter sm:bottom-sheet-enter-none"

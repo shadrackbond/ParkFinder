@@ -1,7 +1,7 @@
 import { ArrowLeft, Mail, Phone, MessageCircle, ChevronDown, Info, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import BottomNav from '../components/common/BottomNav';
+
 
 const faqs = [
   {
@@ -145,7 +145,7 @@ export default function HelpSupport() {
           </div>
         </section>
       </div>
-      <BottomNav />
+
     </div>
   );
 }

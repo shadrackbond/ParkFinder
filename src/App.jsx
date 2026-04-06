@@ -6,6 +6,8 @@ import { AccessibilityProvider } from './context/AccessibilityContext';
 import RoleRoute from './components/common/RoleRoute';
 import AccessibilityMenuModal from './components/common/AccessibilityMenuModal';
 import OnboardingModal from './components/common/OnboardingModal';
+import BottomNav from './components/common/BottomNav';
+import { useLocation } from 'react-router-dom';
 
 /* ── Route-based code splitting ──────────────────────────────────────────── */
 const Login             = lazy(() => import('./pages/Login'));
@@ -114,6 +116,11 @@ function SmartRedirect() {
 const GlobalOverlay = memo(function GlobalOverlay() {
   const [showA11y,      setShowA11y]      = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const location = useLocation();
+  const { userRole, currentUser } = useAuth();
+
+  const isCustomerRoute = ['/app', '/bookings', '/history', '/profile', '/help'].includes(location.pathname);
+  const showBottomNav = currentUser && userRole === 'customer' && isCustomerRoute;
 
   const openA11y = useCallback(() => {
     setShowA11y(true);
@@ -184,6 +191,9 @@ const GlobalOverlay = memo(function GlobalOverlay() {
       {/* ── Modals ────────────────────────────────────────────────────── */}
       {showA11y       && <AccessibilityMenuModal onClose={closeA11y} />}
       {showOnboarding && <OnboardingModal        onClose={closeOnboarding} />}
+
+      {/* ── Persistent Bottom Navigation ────────────────────────────── */}
+      {showBottomNav && <BottomNav />}
     </>
   );
 });

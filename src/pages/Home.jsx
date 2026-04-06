@@ -5,6 +5,7 @@ import BottomNav from '../components/common/BottomNav';
 import useParkingLots from '../hooks/useParkingLots';
 import BookingModal from '../components/booking/BookingModal';
 import useBookings from '../hooks/useBookings';
+import { addRecentLot, subscribeRecentLotIds } from '../services/recentParkingService';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
 const NEARBY_RADIUS_KM = 10;
@@ -173,6 +174,7 @@ export default function Home() {
     const [quickActionMessage, setQuickActionMessage] = useState('');
     const [quickActionError, setQuickActionError] = useState('');
     const [nearbyLots, setNearbyLots] = useState([]);
+    const [recentLotIds, setRecentLotIds] = useState([]);
 
     const autocompleteService = useRef(null);
     const inputRef = useRef(null);
@@ -210,7 +212,24 @@ export default function Home() {
     }, [search]);
 
     const baseLots = filteredLots !== null ? filteredLots : lots;
-    const displayLots = quickAction === 'nearby' ? nearbyLots : baseLots;
+    const recentLots = recentLotIds
+        .map((id) => baseLots.find((lot) => lot.id === id))
+        .filter(Boolean);
+    const displayLots = quickAction === 'nearby'
+        ? nearbyLots
+        : quickAction === 'recent'
+            ? recentLots
+            : baseLots;
+
+    useEffect(() => {
+        const unsubscribe = subscribeRecentLotIds(
+            currentUser?.uid,
+            setRecentLotIds,
+            (error) => setQuickActionError(error.message || 'Failed to load recent parking.')
+        );
+
+        return () => unsubscribe();
+    }, [currentUser?.uid]);
 
     const matchLotsToPlace = (placeName) => {
         if (!placeName) { setFilteredLots(null); return; }
@@ -296,8 +315,39 @@ export default function Home() {
         }
     }
 
+    function handleRecentAction() {
+        if (quickAction === 'recent') {
+            setQuickAction('all');
+            setQuickActionMessage('');
+            setQuickActionError('');
+            return;
+        }
+
+        setQuickAction('recent');
+        setQuickActionError('');
+        setQuickActionMessage(
+            recentLotIds.length
+                ? 'Showing your recently viewed parking spots.'
+                : 'Parking lots you open for booking will appear here.'
+        );
+    }
+
+    async function handleBookLot(lot) {
+        try {
+            if (currentUser?.uid) {
+                await addRecentLot(currentUser.uid, lot.id);
+            }
+        } catch (error) {
+            console.error('Failed to save recent lot:', error);
+        }
+
+        setSelectedLotForBooking(lot);
+    }
+
     const availableTitle = quickAction === 'nearby'
         ? 'Parking Near You'
+        : quickAction === 'recent'
+            ? 'Recent Parking'
         : (selectedPlace ? `Parking near "${selectedPlace.name}"` : 'Available Parking');
 
     const emptyState = quickAction === 'nearby'
@@ -306,6 +356,12 @@ export default function Home() {
             detail: quickActionError || 'Nearby works when your location and the parking lots\' saved map coordinates are available.',
             action: 'Show all parking',
         }
+        : quickAction === 'recent'
+            ? {
+                title: 'No recent parking activity yet',
+                detail: 'Parking lots you open for booking will appear here.',
+                action: 'Browse all parking',
+            }
         : selectedPlace
             ? {
                 title: `No parking found near "${selectedPlace.name}"`,
@@ -413,7 +469,13 @@ export default function Home() {
                     ].map(({ icon: Icon, label, color }) => (
                         <button
                             key={label}
-                            onClick={label === 'Nearby' ? handleNearbyAction : undefined}
+                            onClick={
+                                label === 'Nearby'
+                                    ? handleNearbyAction
+                                    : label === 'Recent'
+                                        ? handleRecentAction
+                                        : undefined
+                            }
                             className={`bg-white rounded-xl p-3.5 border transition group ${
                                 quickAction === label.toLowerCase()
                                     ? 'border-transparent shadow-card'
@@ -429,7 +491,7 @@ export default function Home() {
                         </button>
                     ))}
                 </div>
-                {(quickAction === 'nearby' && (quickActionMessage || quickActionError)) && (
+                {((quickAction === 'nearby' || quickAction === 'recent') && (quickActionMessage || quickActionError)) && (
                     <div className={`mt-3 rounded-xl px-3 py-2 text-xs font-medium ${quickActionError ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-teal-50 text-teal-700 border border-teal-100'}`}>
                         {quickActionError || quickActionMessage}
                     </div>
@@ -552,7 +614,7 @@ export default function Home() {
                                             </div>
                                             <button
                                                 disabled={isFull}
-                                                onClick={() => setSelectedLotForBooking(spot)}
+                                                onClick={() => handleBookLot(spot)}
                                                 className={`px-4 py-2 rounded-lg font-semibold transition text-xs ${isFull
                                                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                                     : 'bg-teal-600 hover:bg-teal-700 text-white'

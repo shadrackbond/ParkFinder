@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { releaseSpot } from './spotService';
+import { recomputeLotAvailability } from './parkingService';
 import { notifyBookingCancelled, notifyHistoryCleared } from '../../notifications/notifications';
 
 /**
@@ -91,6 +92,10 @@ export async function cancelBooking(bookingId) {
         status: 'cancelled',
         updatedAt: serverTimestamp(),
     });
+
+    if (booking.lotId) {
+        await recomputeLotAvailability(booking.lotId);
+    }
 
     notifyBookingCancelled({ id: bookingId, ...booking });
 }

@@ -45,7 +45,9 @@ import {
     notifyCheckOutSuccess,
     notifyQrError,
     notifyProviderOverstay,
+    notifyBookingCheckedIn,
 } from '../../../notifications/notifications';
+import { recomputeLotAvailability } from '../../services/parkingService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -357,6 +359,7 @@ export default function QRScanner() {
                 overchargePaid: true,
                 checkoutTime: serverTimestamp(),
             });
+            await recomputeLotAvailability(booking.lotId);
             playTone('success'); vibrate('success');
             setScanResult({
                 success: true,

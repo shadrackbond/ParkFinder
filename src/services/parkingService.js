@@ -230,3 +230,38 @@ export async function updateLotAvailability(providerId, availableSpots) {
         throw err;
     }
 }
+
+/**
+ * Recomputes the lot's availableSpots based on live bookings.
+ * Should be called whenever a booking is confirmed, cancelled, or completed.
+ */
+export async function recomputeLotAvailability(lotId) {
+    if (!lotId) return;
+    try {
+        const ref = doc(db, LOTS_COLLECTION, lotId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+        
+        const lotData = snap.data();
+        const capacity = Number(lotData.capacity) || 0;
+        
+        const bookingsSnap = await getDocs(
+            query(collection(db, 'bookings'), where('lotId', '==', lotId))
+        );
+        
+        const activeStatuses = new Set(['reserved-pending', 'confirmed', 'checked-in']);
+        const occupiedByBookings = bookingsSnap.docs.reduce((count, bookingDoc) => {
+            const status = bookingDoc.data()?.status;
+            return activeStatuses.has(status) ? count + 1 : count;
+        }, 0);
+        
+        const nextAvailable = Math.max(capacity - occupiedByBookings, 0);
+        
+        await updateDoc(ref, {
+            availableSpots: nextAvailable,
+            updatedAt: serverTimestamp(),
+        });
+    } catch (err) {
+        console.error('Failed to recompute lot availability:', err);
+    }
+}

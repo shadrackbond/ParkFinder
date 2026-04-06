@@ -13,6 +13,7 @@ import {
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { reserveSpot } from '../../services/spotService';
+import { getLotById, recomputeLotAvailability } from '../../services/parkingService';
 import { cancelBooking } from '../../services/bookingService';
 import SpotPicker from './SpotPicker';
 import {
@@ -276,6 +277,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                             schedulePreCheckInNotification(confirmedBooking, 15);
                             schedulePreCheckoutNotification(confirmedBooking, 10);
                             setLoading(false);
+                            recomputeLotAvailability(lot.id);
                             if (onSuccess) onSuccess();
                             onClose();
                         } else if (status === 'cancelled') {

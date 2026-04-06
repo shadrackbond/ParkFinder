@@ -52,8 +52,9 @@ export default function Bookings() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-safe page-enter">
-            {/* Header */}
+        <>
+            <div className="min-h-screen bg-gray-50 pb-safe page-enter">
+                {/* Header */}
             <div className="bg-white px-5 pt-12 pb-4 border-b border-gray-100">
                 <div className="flex items-center justify-between mb-4">
                     <div>
@@ -129,11 +130,12 @@ export default function Bookings() {
                     ))
                 )}
             </div>
+            
+            </div>
 
             {selectedBooking && (
                 <QRTicket booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
             )}
-
-        </div>
+        </>
     );
 }

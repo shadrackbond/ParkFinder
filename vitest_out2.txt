@@ -1,0 +1,25 @@
+
+ RUN  v4.1.2 G:/Dev/Documents/USIU/Year 3/Sem 2/APP4080/parkease-kenya
+
+ ✓ src/__tests__/useParkingLots.test.js (3 tests) 24ms
+ ✓ src/__tests__/LotCard.test.jsx (3 tests) 71ms
+stderr | src/__tests__/bookingService.test.js > bookingService > createBooking > throws an error if addDoc fails
+Failed to create booking: Error: Firestore error
+    at G:/Dev/Documents/USIU/Year 3/Sem 2/APP4080/parkease-kenya/src/__tests__/bookingService.test.js:54:48
+    at [90mfile:///G:/Dev/Documents/USIU/Year%203/Sem%202/APP4080/parkease-kenya/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at [90mfile:///G:/Dev/Documents/USIU/Year%203/Sem%202/APP4080/parkease-kenya/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1893:26
+    at [90mfile:///G:/Dev/Documents/USIU/Year%203/Sem%202/APP4080/parkease-kenya/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2316:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///G:/Dev/Documents/USIU/Year%203/Sem%202/APP4080/parkease-kenya/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2313:10[90m)[39m
+    at [90mfile:///G:/Dev/Documents/USIU/Year%203/Sem%202/APP4080/parkease-kenya/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2295:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///G:/Dev/Documents/USIU/Year%203/Sem%202/APP4080/parkease-kenya/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2262:10[90m)[39m
+    at [90mfile:///G:/Dev/Documents/USIU/Year%203/Sem%202/APP4080/parkease-kenya/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2945:64
+
+ ✓ src/__tests__/bookingService.test.js (2 tests) 10ms
+
+ Test Files  3 passed (3)
+      Tests  8 passed (8)
+   Start at  12:53:34
+   Duration  25.40s (transform 1.72s, setup 8.87s, import 11.07s, tests 105ms, environment 44.96s)
+

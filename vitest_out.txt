@@ -1,0 +1,85 @@
+
+ RUN  v4.1.2 G:/Dev/Documents/USIU/Year 3/Sem 2/APP4080/parkease-kenya
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 3 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files G:/Dev/Documents/USIU/Year 3/Sem 2/APP4080/parkease-kenya/src/__tests__/useParkingLots.test.js.
+ ❯ ../../../../Year%203/Sem%202/APP4080/parkease-kenya/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:3450:94
+ ❯ processTicksAndRejections node:internal/process/task_queues:103:5
+ ❯ Pool.schedule ../../../../Year%203/Sem%202/APP4080/parkease-kenya/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:3450:5
+
+Caused by: Error: require() cannot be used on an ESM graph with top-level await. Use import() instead. To see where the top-level await comes from, use --experimental-print-required-tla.
+  From G:\Dev\Documents\USIU\Year 3\Sem 2\APP4080\parkease-kenya\node_modules\jsdom\lib\jsdom\living\css\helpers\css-values.js 
+  Requiring G:\Dev\Documents\USIU\Year 3\Sem 2\APP4080\parkease-kenya\node_modules\@asamuzakjp\css-color\dist\esm\index.js 
+ ❯ ModuleJobSync.runSync node:internal/modules/esm/module_job:513:13
+ ❯ ModuleLoader.importSyncForRequire node:internal/modules/esm/loader:388:47
+ ❯ loadESMFromCJS node:internal/modules/cjs/loader:1578:24
+ ❯ Module._compile node:internal/modules/cjs/loader:1743:5
+ ❯ Object..js node:internal/modules/cjs/loader:1893:10
+ ❯ Module.load node:internal/modules/cjs/loader:1481:32
+ ❯ Module._load node:internal/modules/cjs/loader:1300:12
+ ❯ TracingChannel.traceSync node:diagnostics_channel:328:14
+ ❯ wrapModuleLoad node:internal/modules/cjs/loader:245:24
+ ❯ Module.require node:internal/modules/cjs/loader:1504:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ERR_REQUIRE_ASYNC_MODULE' }
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files G:/Dev/Documents/USIU/Year 3/Sem 2/APP4080/parkease-kenya/src/__tests__/bookingService.test.js.
+ ❯ ../../../../Year%203/Sem%202/APP4080/parkease-kenya/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:3450:94
+ ❯ processTicksAndRejections node:internal/process/task_queues:103:5
+ ❯ Pool.schedule ../../../../Year%203/Sem%202/APP4080/parkease-kenya/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:3450:5
+
+Caused by: Error: require() cannot be used on an ESM graph with top-level await. Use import() instead. To see where the top-level await comes from, use --experimental-print-required-tla.
+  From G:\Dev\Documents\USIU\Year 3\Sem 2\APP4080\parkease-kenya\node_modules\jsdom\lib\jsdom\living\css\helpers\css-values.js 
+  Requiring G:\Dev\Documents\USIU\Year 3\Sem 2\APP4080\parkease-kenya\node_modules\@asamuzakjp\css-color\dist\esm\index.js 
+ ❯ ModuleJobSync.runSync node:internal/modules/esm/module_job:513:13
+ ❯ ModuleLoader.importSyncForRequire node:internal/modules/esm/loader:388:47
+ ❯ loadESMFromCJS node:internal/modules/cjs/loader:1578:24
+ ❯ Module._compile node:internal/modules/cjs/loader:1743:5
+ ❯ Object..js node:internal/modules/cjs/loader:1893:10
+ ❯ Module.load node:internal/modules/cjs/loader:1481:32
+ ❯ Module._load node:internal/modules/cjs/loader:1300:12
+ ❯ TracingChannel.traceSync node:diagnostics_channel:328:14
+ ❯ wrapModuleLoad node:internal/modules/cjs/loader:245:24
+ ❯ Module.require node:internal/modules/cjs/loader:1504:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ERR_REQUIRE_ASYNC_MODULE' }
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files G:/Dev/Documents/USIU/Year 3/Sem 2/APP4080/parkease-kenya/src/__tests__/LotCard.test.jsx.
+ ❯ ../../../../Year%203/Sem%202/APP4080/parkease-kenya/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:3450:94
+ ❯ processTicksAndRejections node:internal/process/task_queues:103:5
+ ❯ Pool.schedule ../../../../Year%203/Sem%202/APP4080/parkease-kenya/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:3450:5
+
+Caused by: Error: require() cannot be used on an ESM graph with top-level await. Use import() instead. To see where the top-level await comes from, use --experimental-print-required-tla.
+  From G:\Dev\Documents\USIU\Year 3\Sem 2\APP4080\parkease-kenya\node_modules\jsdom\lib\jsdom\living\css\helpers\css-values.js 
+  Requiring G:\Dev\Documents\USIU\Year 3\Sem 2\APP4080\parkease-kenya\node_modules\@asamuzakjp\css-color\dist\esm\index.js 
+ ❯ ModuleJobSync.runSync node:internal/modules/esm/module_job:513:13
+ ❯ ModuleLoader.importSyncForRequire node:internal/modules/esm/loader:388:47
+ ❯ loadESMFromCJS node:internal/modules/cjs/loader:1578:24
+ ❯ Module._compile node:internal/modules/cjs/loader:1743:5
+ ❯ Object..js node:internal/modules/cjs/loader:1893:10
+ ❯ Module.load node:internal/modules/cjs/loader:1481:32
+ ❯ Module._load node:internal/modules/cjs/loader:1300:12
+ ❯ TracingChannel.traceSync node:diagnostics_channel:328:14
+ ❯ wrapModuleLoad node:internal/modules/cjs/loader:245:24
+ ❯ Module.require node:internal/modules/cjs/loader:1504:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ERR_REQUIRE_ASYNC_MODULE' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  no tests
+      Tests  no tests
+     Errors  3 errors
+   Start at  12:52:13
+   Duration  1.99s (transform 0ms, setup 0ms, import 0ms, tests 0ms, environment 0ms)
+

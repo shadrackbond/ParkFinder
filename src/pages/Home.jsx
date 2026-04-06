@@ -176,10 +176,39 @@ export default function Home() {
     const [nearbyLots, setNearbyLots] = useState([]);
     const [recentLotIds, setRecentLotIds] = useState([]);
 
+    const [notifications, setNotifications] = useState([]); // { key, title, message, type, timestamp, meta, read }
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [hasUnread, setHasUnread] = useState(false);
+    const [toastNotification, setToastNotification] = useState(null);
+    const [toastVisible, setToastVisible] = useState(false);
+    const toastTouchStartY = useRef(null);
+
     const autocompleteService = useRef(null);
     const inputRef = useRef(null);
 
     const displayName = userProfile?.displayName || currentUser?.displayName || 'there';
+
+    // Subscribe to app-wide notifications (from notifications/notifications.js)
+    useEffect(() => {
+        function handleAppNotification(event) {
+            const detail = event.detail;
+            if (!detail) return;
+            const item = { ...detail, read: false };
+            setNotifications((prev) => [item, ...prev].slice(0, 10));
+            setHasUnread(true);
+
+            // Show swipeable toast popup for the newest notification
+            setToastNotification(item);
+            setToastVisible(true);
+            // Auto-hide after a few seconds
+            setTimeout(() => {
+                setToastVisible(false);
+            }, 5000);
+        }
+
+        window.addEventListener('app:notification', handleAppNotification);
+        return () => window.removeEventListener('app:notification', handleAppNotification);
+    }, []);
 
     // Initialize Google Places AutocompleteService
     useEffect(() => {
@@ -377,17 +406,117 @@ export default function Home() {
     return (
         <div className="min-h-screen bg-gray-50 pb-safe page-enter">
             {/* Header */}
-            <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100">
+            <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100 relative">
                 <div className="flex items-center justify-between mb-5">
                     <div>
                         <p className="text-gray-400 text-xs font-medium">Welcome back,</p>
                         <h1 className="text-gray-900 text-xl font-bold">{displayName}</h1>
                     </div>
-                    <button className="relative bg-gray-50 p-2.5 rounded-full border border-gray-100 hover:bg-gray-100 transition">
+                    <button
+                        className={`relative bg-gray-50 p-2.5 rounded-full border border-gray-100 hover:bg-gray-100 transition ${hasUnread ? 'ring-2 ring-teal-400 animate-pulse' : ''}`}
+                        onClick={() => {
+                            setNotificationsOpen((open) => !open);
+                            setHasUnread(false);
+                        }}
+                    >
                         <Bell className="w-5 h-5 text-gray-600" />
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+                        {hasUnread && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+                        )}
                     </button>
                 </div>
+
+                {notificationsOpen && (
+                    <div className="absolute right-5 top-20 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 z-40 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                            <p className="text-xs font-bold text-gray-800">Notifications</p>
+                            {notifications.length > 0 && (
+                                <button
+                                    className="text-[10px] text-teal-600 font-semibold"
+                                    onClick={() => {
+                                        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+                                        setHasUnread(false);
+                                    }}
+                                >
+                                    Mark all as read
+                                </button>
+                            )}
+                        </div>
+                        {notifications.length === 0 ? (
+                            <div className="px-4 py-5 text-center text-xs text-gray-400">
+                                No notifications yet
+                            </div>
+                        ) : (
+                            <ul className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                                {notifications.map((n) => (
+                                    <li
+                                        key={n.timestamp}
+                                        className={`px-4 py-3 text-xs flex flex-col gap-0.5 ${n.read ? 'bg-white' : 'bg-teal-50/40'}`}
+                                        onClick={() => {
+                                            setNotifications((prev) => prev.map((item) => (
+                                                item.timestamp === n.timestamp ? { ...item, read: true } : item
+                                            )));
+                                        }}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className={`truncate ${n.read ? 'font-medium text-gray-700' : 'font-semibold text-gray-900'}`}>{n.title}</p>
+                                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                                {new Date(n.timestamp).toLocaleTimeString('en-KE', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 leading-snug">{n.message}</p>
+                                        {n.type && (
+                                            <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wide">
+                                                {n.type}
+                                            </span>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+
+                {/* Swipeable toast popup for latest notification */}
+                {toastNotification && toastVisible && (
+                    <div
+                        className="fixed left-1/2 top-3 -translate-x-1/2 z-50 max-w-sm w-[90%]"
+                        onTouchStart={(e) => {
+                            toastTouchStartY.current = e.touches[0].clientY;
+                        }}
+                        onTouchMove={(e) => {
+                            const startY = toastTouchStartY.current;
+                            if (startY == null) return;
+                            const deltaY = e.touches[0].clientY - startY;
+                            // Swipe up to dismiss
+                            if (deltaY < -40) {
+                                setToastVisible(false);
+                                toastTouchStartY.current = null;
+                            }
+                        }}
+                        onTouchEnd={() => {
+                            toastTouchStartY.current = null;
+                        }}
+                    >
+                        <div className="bg-gray-900/95 text-white rounded-xl shadow-2xl px-4 py-3 flex items-start gap-3 animate-slide-down">
+                            <div className="mt-0.5 w-2 h-2 rounded-full bg-teal-400 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold truncate">{toastNotification.title}</p>
+                                <p className="text-[11px] text-gray-200 mt-0.5 line-clamp-2">{toastNotification.message}</p>
+                            </div>
+                            <button
+                                className="ml-2 text-gray-400 hover:text-gray-200"
+                                onClick={() => setToastVisible(false)}
+                                aria-label="Dismiss notification"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Live Booking Banner */}
                 {activeSession && (

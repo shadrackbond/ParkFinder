@@ -24,12 +24,12 @@ import Analytics from './pages/admin/Analytics';
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth();
-  return currentUser ? children : <Navigate to="/login" />;
+  return currentUser ? children : <Navigate to="/customer/login" />;
 }
 
 function SmartRedirect() {
   const { currentUser, userRole } = useAuth();
-  if (!currentUser) return <Navigate to="/login" />;
+  if (!currentUser) return <Navigate to="/customer/login" />;
   if (userRole === 'admin') return <Navigate to="/admin" />;
   if (userRole === 'provider') return <Navigate to="/provider" />;
   return <Home />;
@@ -46,10 +46,13 @@ function App() {
       <Router>
         <div className="min-h-screen bg-gray-50">
           <Routes>
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<Navigate to="/customer/login" replace />} />
+            <Route path="/customer/login" element={<Login />} />
+            <Route path="/provider/login" element={<Login />} />
             <Route path="/provider/register" element={<ProviderRegister />} />
 
-            <Route path="/" element={<PrivateRoute><SmartRedirect /></PrivateRoute>} />
+            <Route path="/" element={<Navigate to="/customer/login" replace />} />
+            <Route path="/app" element={<PrivateRoute><SmartRedirect /></PrivateRoute>} />
             <Route path="/bookings" element={<PrivateRoute><Bookings /></PrivateRoute>} />
             <Route path="/history" element={<PrivateRoute><History /></PrivateRoute>} />
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />

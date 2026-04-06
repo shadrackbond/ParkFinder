@@ -42,6 +42,12 @@ import {
 } from 'firebase/firestore';
 import { releaseSpot } from '../../services/spotService';
 import axios from 'axios';
+import {
+    notifyCheckInSuccess,
+    notifyCheckOutSuccess,
+    notifyQrError,
+    notifyProviderOverstay,
+} from '../../../notifications/notifications';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -337,21 +343,27 @@ export default function QRScanner() {
 
             if (!booking) {
                 playTone('error'); vibrate('error');
-                setScanResult({ success: false, message: 'Invalid QR code.' });
+                const msg = 'Invalid QR code.';
+                setScanResult({ success: false, message: msg });
+                notifyQrError(msg);
                 addHistory({ success: false, bookingId, qrSnippet: rawCode.slice(0, 20) });
                 return;
             }
 
             if (booking.status === 'cancelled') {
                 playTone('error'); vibrate('error');
-                setScanResult({ success: false, message: 'This booking was cancelled.' });
+                const msg = 'This booking was cancelled.';
+                setScanResult({ success: false, message: msg });
+                notifyQrError(msg);
                 addHistory({ success: false, bookingId, qrSnippet: rawCode.slice(0, 20) });
                 return;
             }
 
             if (booking.checkedOut === true || booking.status === 'completed') {
                 playTone('error'); vibrate('error');
-                setScanResult({ success: false, message: 'Already checked out.' });
+                const msg = 'Already checked out.';
+                setScanResult({ success: false, message: msg });
+                notifyQrError(msg);
                 addHistory({ success: false, bookingId, qrSnippet: rawCode.slice(0, 20) });
                 return;
             }
@@ -365,11 +377,13 @@ export default function QRScanner() {
                 });
                 
                 playTone('success'); vibrate('success');
+                const updated = { ...booking, status: 'checked-in' };
                 setScanResult({
                     success: true,
                     message: `✓ Checked IN. User is now parking in Spot #${booking.spotNumber}.`,
-                    booking,
+                    booking: updated,
                 });
+                notifyCheckInSuccess(updated);
                 addHistory({ success: true, bookingId: booking.id, qrSnippet: booking.id.slice(0, 20) });
 
                 setTimeout(() => {
@@ -383,7 +397,9 @@ export default function QRScanner() {
             if (booking.status !== 'checked-in') {
                 // Safety net
                 playTone('error'); vibrate('error');
-                setScanResult({ success: false, message: 'Invalid booking state for checkout.' });
+                const msg = 'Invalid booking state for checkout.';
+                setScanResult({ success: false, message: msg });
+                notifyQrError(msg);
                 return;
             }
 
@@ -430,7 +446,9 @@ export default function QRScanner() {
                 });
 
                 playTone('error'); vibrate('error');
-                setScanResult({ success: false, message: `User is ${extraMinutes} min late. Extra charge required.` });
+                const msg = `User is ${extraMinutes} min late. Extra charge required.`;
+                setScanResult({ success: false, message: msg });
+                notifyProviderOverstay(booking);
                 return;
             }
 

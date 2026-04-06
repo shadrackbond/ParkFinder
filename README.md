@@ -464,8 +464,8 @@ const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
 ```
 
 If you need to add a new API key (e.g. Google Maps, Daraja):
-1. Add it to your local `.env` file: `VITE_GOOGLE_MAPS_KEY=your_key_here`
-2. Access it in code via `import.meta.env.VITE_GOOGLE_MAPS_KEY`
+1. Add it to your local `.env` file: `VITE_GOOGLE_MAPS_API_KEY=your_key_here`
+2. Access it in code via `import.meta.env.VITE_GOOGLE_MAPS_API_KEY`
 3. Tell the team the variable name so they can add it to their own `.env` files
 4. **Never** put the actual key value in the README, Slack, or any committed file
 

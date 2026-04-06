@@ -170,7 +170,7 @@ span.inline-badge,
 
 /* Fix for mobile bottom nav overlap */
 .pb-safe {
-  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 }
 
 /* Input focus ring consistent */
@@ -267,4 +267,52 @@ textarea:focus {
 ───────────────────────────────────────────────────────────────────────────── */
 .border-3 {
   border-width: 3px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BOTTOM SHEET MOBILE MODAL ANIMATION
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Applied to the bottom-sheet inner container (rounded-t-3xl divs) */
+.bottom-sheet-enter {
+  animation: slideUpSheet 0.28s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  will-change: transform;
+}
+
+/* Backdrop fade-in for modals */
+@keyframes backdropFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.backdrop-enter {
+  animation: backdropFade 0.2s ease-out forwards;
+}
+
+/* Overscroll contain for modal scroll areas - prevents page scroll-chain */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MOBILE LAYOUT SAFETY
+   Ensures content is never accidentally hidden behind fixed navs
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Utility: apply to scrollable page-level containers that sit above a fixed bottom nav */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }

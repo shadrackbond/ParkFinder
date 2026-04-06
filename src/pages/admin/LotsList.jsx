@@ -78,7 +78,7 @@ export default function LotsList() {
                             <h1 className="text-xl font-bold text-gray-900">Parking Lots</h1>
                             <p className="text-gray-400 text-xs mt-0.5">{lots.length} total lots</p>
                         </div>
-                        <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-2 justify-end">
                             <button 
                                 onClick={async () => {
                                     const q = query(collection(db, 'parking-lots'), where('businessName', '==', 'Prism Tower Parking'));

@@ -51,6 +51,12 @@ export default function QRTicket({ booking, onClose }) {
         }
     }, [qrValue]);
 
+    // Lock body scroll while ticket is visible
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = ''; };
+    }, []);
+
     // Determine date/time display — new schema uses plain strings
     const dateDisplay = booking.date ? formatDate(booking.date) : formatDate(booking.startTime);
     const timeDisplay = booking.startTime && booking.endTime

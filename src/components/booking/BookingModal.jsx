@@ -86,6 +86,16 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
         return () => clearInterval(timer);
     }, [isOpen]);
 
+    // Lock body scroll while modal is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [isOpen]);
+
     if (!isOpen || !lot) return null;
     if (!currentUser) return null;
 
@@ -294,7 +304,6 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             const msg = err.message || 'An error occurred during booking. Please try again.';
             setError(msg);
             notifySystemError(msg);
-        } finally {
             setLoading(false);
         }
     };
@@ -303,10 +312,22 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
 
     return (
         <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-                <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            {/* Backdrop */}
+            <div
+                className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 bg-black/50 backdrop-blur-sm"
+                onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            >
+                <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md flex flex-col shadow-2xl bottom-sheet-enter sm:bottom-sheet-enter-none"
+                    style={{ maxHeight: '92dvh' }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Mobile drag handle */}
+                    <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+                        <div className="w-10 h-1 rounded-full bg-gray-200" />
+                    </div>
+
                     {/* Header */}
-                    <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+                    <div className="flex items-center justify-between px-5 pt-3 sm:pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
                         <div>
                             <h2 className="text-xl font-bold text-gray-900">Book Parking</h2>
                             <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
@@ -322,7 +343,8 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                         </button>
                     </div>
 
-                    <div className="p-5 overflow-y-auto max-h-[70vh]">
+                    <div className="flex-1 overflow-y-auto overscroll-contain">
+                    <div className="p-5">
                         {error && (
                             <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl mb-4 border border-red-100">
                                 {error}
@@ -464,9 +486,10 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                             </div>
                         </form>
                     </div>
+                    </div>{/* end scroll container */}
 
                     {/* Footer */}
-                    <div className="p-5 border-t border-gray-100 bg-gray-50">
+                    <div className="p-5 border-t border-gray-100 bg-gray-50 flex-shrink-0">
                         <button
                             type="submit"
                             form="booking-form"
@@ -490,7 +513,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                         </p>
                     </div>
                 </div>
-            </div>
+            </div>{/* end backdrop */}
 
             {/* SpotPicker overlay (renders on top of modal) */}
             {showSpotPicker && (

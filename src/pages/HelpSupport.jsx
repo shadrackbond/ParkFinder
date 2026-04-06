@@ -1,6 +1,7 @@
 import { ArrowLeft, Mail, Phone, MessageCircle, ChevronDown, Info, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import BottomNav from '../components/common/BottomNav';
 
 const faqs = [
   {
@@ -26,7 +27,7 @@ export default function HelpSupport() {
   const [openFaq, setOpenFaq] = useState(null);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col pb-safe">
       {/* Header */}
       <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full hover:bg-gray-50 text-gray-600 transition">
@@ -144,6 +145,7 @@ export default function HelpSupport() {
           </div>
         </section>
       </div>
+      <BottomNav />
     </div>
   );
 }

@@ -138,10 +138,11 @@ export default function Profile() {
       setSaving(true);
       await updateUserProfile(currentUser.uid, editData);
       setSaveSuccess(true);
+      // Update local profile display without reload
       setTimeout(() => {
         setEditing(false);
-        window.location.reload();
-      }, 1000);
+        setSaveSuccess(false);
+      }, 1500);
     } catch (err) {
       console.error('Failed to update profile:', err);
     } finally {
@@ -226,14 +227,21 @@ export default function Profile() {
 
           {/* Edit Profile Modal */}
           {editing && (
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl w-full max-w-md shadow-float overflow-hidden">
-                <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4"
+              onClick={(e) => { if (e.target === e.currentTarget) setEditing(false); }}>
+              <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md shadow-float flex flex-col bottom-sheet-enter"
+                style={{ maxHeight: '92dvh' }}
+                onClick={(e) => e.stopPropagation()}>
+                {/* Mobile drag handle */}
+                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                  <div className="w-10 h-1 rounded-full bg-gray-200" />
+                </div>
+                <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                   <h3 className="text-lg font-bold text-gray-900">Edit Profile</h3>
                   <button onClick={() => setEditing(false)} className="text-gray-400 text-sm">Cancel</button>
                 </div>
 
-                <form onSubmit={handleSave} className="p-5 space-y-3.5 max-h-[70vh] overflow-y-auto">
+                <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 space-y-3.5">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
                     <input type="text" value={editData.displayName} onChange={(e) => setEditData({ ...editData, displayName: e.target.value })}

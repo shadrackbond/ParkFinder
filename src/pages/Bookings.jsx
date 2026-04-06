@@ -43,7 +43,10 @@ export default function Bookings() {
             // onSnapshot in useBookings updates the list reactively — no reload needed
         } catch (err) {
             console.error('[Bookings] cancelBooking error:', err);
-            setCancelError(err.message || 'Failed to cancel booking.');
+            const msg = err.message || 'Failed to cancel booking.';
+            setCancelError(msg);
+            // Auto-dismiss error message after 6 seconds
+            setTimeout(() => setCancelError(''), 6000);
         } finally {
             setCancellingId(null);
         }

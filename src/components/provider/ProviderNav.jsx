@@ -58,8 +58,8 @@ export default function ProviderNav() {
             </aside>
 
             {/* Mobile bottom nav */}
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-40"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1E1E1E] border-t border-gray-100 z-50"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -1px 8px rgba(0,0,0,0.06)' }}>
                 <div className="flex items-center justify-around px-2 py-1">
                     {navItems.map((item) => {
                         const Icon = item.icon;

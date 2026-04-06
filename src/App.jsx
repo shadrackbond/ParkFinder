@@ -135,9 +135,9 @@ const GlobalOverlay = memo(function GlobalOverlay() {
         id="fab-accessibility"
         aria-label="Open accessibility settings"
         onClick={openA11y}
-        style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))', left: '1.25rem', position: 'fixed' }}
-        className="z-[9990] fab-enter
-          w-14 h-14 rounded-full
+        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))', left: '1rem', position: 'fixed' }}
+        className="z-[45] fab-enter
+          w-12 h-12 rounded-full
           bg-white dark:bg-gray-800
           shadow-float border border-gray-200 dark:border-gray-700
           flex items-center justify-center
@@ -161,9 +161,9 @@ const GlobalOverlay = memo(function GlobalOverlay() {
         id="fab-help"
         aria-label="Open onboarding tutorial"
         onClick={openOnboarding}
-        style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))', right: '1.25rem', position: 'fixed' }}
-        className="z-[9990] fab-enter
-          w-14 h-14 rounded-full
+        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))', right: '1rem', position: 'fixed' }}
+        className="z-[45] fab-enter
+          w-12 h-12 rounded-full
           bg-teal-500 dark:bg-teal-600
           shadow-float
           flex items-center justify-center

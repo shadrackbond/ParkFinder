@@ -213,7 +213,7 @@ export default function QRScanner() {
                         booking = { id: bookingSnap.id, ...bookingSnap.data() };
                     }
                 }
-            } catch (err) {}
+            } catch (err) { /* ignore */ }
 
             if (!booking) {
                 try {
@@ -223,7 +223,7 @@ export default function QRScanner() {
                         const snap = querySnap.docs[0];
                         booking = { id: snap.id, ...snap.data() };
                     }
-                } catch (err) {}
+                } catch (err) { /* ignore */ }
             }
 
             if (!booking) {
@@ -308,7 +308,7 @@ export default function QRScanner() {
                 try {
                     const lotSnap = await getDoc(doc(db, 'parking-lots', booking.lotId));
                     if (lotSnap.exists()) hourlyRate = lotSnap.data().hourlyRate || 100;
-                } catch {}
+                } catch { /* ignore */ }
 
                 const extraCharge = Math.ceil(extraMinutes / 60) * hourlyRate;
 
@@ -316,7 +316,7 @@ export default function QRScanner() {
                 try {
                     const userSnap = await getDoc(doc(db, 'users', booking.userId));
                     if (userSnap.exists()) userPhone = userSnap.data().phone || '';
-                } catch {}
+                } catch { /* ignore */ }
 
                 setOverchargeInfo({
                     bookingId,
@@ -405,7 +405,7 @@ export default function QRScanner() {
                         await performCheckout(booking);
                         setValidating(false);
                     }
-                } catch (err) {}
+                } catch (err) { /* ignore */ }
             }, OVERCHARGE_POLL_INTERVAL_MS);
         } catch (err) {
             console.error('[QRScanner] sendMpesa error:', err);

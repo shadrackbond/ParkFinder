@@ -140,9 +140,13 @@ export default function Home() {
         const dates = getBookingDates(b);
         if (!dates) return false;
         
-        // Match if Checked-In, OR if now is within 30 minutes before start up until end.
-        if (b.status === 'checked-in') return true;
+        // Checked-in: show active unless more than 2 hours past end time
+        if (b.status === 'checked-in') {
+            const graceEnd = new Date(dates.end.getTime() + 2 * 60 * 60 * 1000);
+            return now <= graceEnd;
+        }
         
+        // Confirmed: show if within 30 min before start and before end
         const thirtyMinsBefore = new Date(dates.start.getTime() - 30 * 60000);
         return now >= thirtyMinsBefore && now <= dates.end;
     });

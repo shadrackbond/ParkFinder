@@ -17,6 +17,7 @@ const Bookings          = lazy(() => import('./pages/Bookings'));
 const History           = lazy(() => import('./pages/History'));
 const Profile           = lazy(() => import('./pages/Profile'));
 const HelpSupport       = lazy(() => import('./pages/HelpSupport'));
+const NotFound          = lazy(() => import('./pages/NotFound'));
 
 const ProviderDashboard = lazy(() => import('./pages/provider/ProviderDashboard'));
 const LotManager        = lazy(() => import('./pages/provider/LotManager'));
@@ -235,7 +236,7 @@ function App() {
                   <Route path="/admin/lots"      element={<RoleRoute allowedRoles={['admin']}><LotsList /></RoleRoute>} />
                   <Route path="/admin/analytics" element={<RoleRoute allowedRoles={['admin']}><Analytics /></RoleRoute>} />
 
-                  <Route path="*" element={<Navigate to="/" />} />
+                  <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
             </RouteErrorBoundary>

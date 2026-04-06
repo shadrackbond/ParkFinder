@@ -314,17 +314,13 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 bg-black/50 transition-opacity"
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 transition-opacity"
                 onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
             >
-                <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md flex flex-col shadow-2xl bottom-sheet-enter sm:bottom-sheet-enter-none"
+                <div className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-2xl page-enter"
                     style={{ maxHeight: '92dvh' }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Mobile drag handle */}
-                    <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
-                        <div className="w-10 h-1 rounded-full bg-gray-200" />
-                    </div>
 
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 pt-3 sm:pt-5 pb-3 border-b border-gray-100 flex-shrink-0">

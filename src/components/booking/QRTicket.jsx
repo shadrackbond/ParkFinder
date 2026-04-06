@@ -64,7 +64,7 @@ export default function QRTicket({ booking, onClose }) {
         : '--:-- – --:--';
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 transition-opacity">
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 transition-opacity">
             <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden" style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
                 {/* Header */}
                 <div className="bg-teal-600 px-5 py-4 flex items-center justify-between">

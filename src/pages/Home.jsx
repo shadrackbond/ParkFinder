@@ -6,6 +6,7 @@ import useParkingLots from '../hooks/useParkingLots';
 import BookingModal from '../components/booking/BookingModal';
 import useBookings from '../hooks/useBookings';
 import { addRecentLot, subscribeRecentLotIds } from '../services/recentParkingService';
+import { subscribeFavoriteLotIds, toggleFavoriteLot } from '../services/favoriteParkingService';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
 const NEARBY_RADIUS_KM = 10;
@@ -175,6 +176,8 @@ export default function Home() {
     const [quickActionError, setQuickActionError] = useState('');
     const [nearbyLots, setNearbyLots] = useState([]);
     const [recentLotIds, setRecentLotIds] = useState([]);
+    const [favoriteLotIds, setFavoriteLotIds] = useState([]);
+    const [favoriteBusyLotId, setFavoriteBusyLotId] = useState(null);
 
     const [notifications, setNotifications] = useState([]); // { key, title, message, type, timestamp, meta, read }
     const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -242,12 +245,15 @@ export default function Home() {
 
     const baseLots = filteredLots !== null ? filteredLots : lots;
     const recentLots = recentLotIds
+    const favoriteLots = favoriteLotIds
         .map((id) => baseLots.find((lot) => lot.id === id))
         .filter(Boolean);
     const displayLots = quickAction === 'nearby'
         ? nearbyLots
         : quickAction === 'recent'
             ? recentLots
+        : quickAction === 'favorites'
+            ? favoriteLots
             : baseLots;
 
     useEffect(() => {
@@ -255,6 +261,16 @@ export default function Home() {
             currentUser?.uid,
             setRecentLotIds,
             (error) => setQuickActionError(error.message || 'Failed to load recent parking.')
+        );
+
+        return () => unsubscribe();
+    }, [currentUser?.uid]);
+
+    useEffect(() => {
+        const unsubscribe = subscribeFavoriteLotIds(
+            currentUser?.uid,
+            setFavoriteLotIds,
+            (error) => setQuickActionError(error.message || 'Failed to load favorites.')
         );
 
         return () => unsubscribe();
@@ -373,8 +389,44 @@ export default function Home() {
         setSelectedLotForBooking(lot);
     }
 
+    function handleFavoritesAction() {
+        if (quickAction === 'favorites') {
+            setQuickAction('all');
+            setQuickActionMessage('');
+            setQuickActionError('');
+            return;
+        }
+
+        setQuickAction('favorites');
+        setQuickActionError('');
+        setQuickActionMessage(
+            favoriteLotIds.length
+                ? 'Showing your saved favorite parking spots.'
+                : 'You have not saved any favorite parking spots yet.'
+        );
+    }
+
+    async function handleFavoriteToggle(lotId) {
+        if (!currentUser?.uid || favoriteBusyLotId) return;
+
+        const isFavorite = favoriteLotIds.includes(lotId);
+        setFavoriteBusyLotId(lotId);
+        setQuickActionError('');
+
+        try {
+            await toggleFavoriteLot(currentUser.uid, lotId, !isFavorite);
+        } catch (error) {
+            console.error('Favorite toggle failed:', error);
+            setQuickActionError('Unable to update favorites right now.');
+        } finally {
+            setFavoriteBusyLotId(null);
+        }
+    }
+
     const availableTitle = quickAction === 'nearby'
         ? 'Parking Near You'
+        : quickAction === 'favorites'
+            ? 'Favorite Parking'
         : quickAction === 'recent'
             ? 'Recent Parking'
         : (selectedPlace ? `Parking near "${selectedPlace.name}"` : 'Available Parking');
@@ -385,6 +437,12 @@ export default function Home() {
             detail: quickActionError || 'Nearby works when your location and the parking lots\' saved map coordinates are available.',
             action: 'Show all parking',
         }
+        : quickAction === 'favorites'
+            ? {
+                title: 'No favorite parking spots yet',
+                detail: 'Tap the heart icon on any parking lot to save it here.',
+                action: 'Browse all parking',
+            }
         : quickAction === 'recent'
             ? {
                 title: 'No recent parking activity yet',
@@ -601,9 +659,11 @@ export default function Home() {
                             onClick={
                                 label === 'Nearby'
                                     ? handleNearbyAction
-                                    : label === 'Recent'
-                                        ? handleRecentAction
-                                        : undefined
+                                    : label === 'Favorites'
+                                        ? handleFavoritesAction
+                                        : label === 'Recent'
+                                            ? handleRecentAction
+                                            : undefined
                             }
                             className={`bg-white rounded-xl p-3.5 border transition group ${
                                 quickAction === label.toLowerCase()
@@ -620,7 +680,7 @@ export default function Home() {
                         </button>
                     ))}
                 </div>
-                {((quickAction === 'nearby' || quickAction === 'recent') && (quickActionMessage || quickActionError)) && (
+                {((quickAction === 'nearby' || quickAction === 'favorites' || quickAction === 'recent') && (quickActionMessage || quickActionError)) && (
                     <div className={`mt-3 rounded-xl px-3 py-2 text-xs font-medium ${quickActionError ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-teal-50 text-teal-700 border border-teal-100'}`}>
                         {quickActionError || quickActionMessage}
                     </div>
@@ -683,6 +743,8 @@ export default function Home() {
                         {displayLots.map((spot) => {
                             const images = spot.lotImages || (spot.imageUrl ? [spot.imageUrl] : []);
                             const isFull = Number(spot.availableSpots ?? 0) <= 0;
+                            const isFavorite = favoriteLotIds.includes(spot.id);
+                            const isFavoriteBusy = favoriteBusyLotId === spot.id;
                             return (
                                 <div key={spot.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                                     {images.length === 0 && (
@@ -723,9 +785,23 @@ export default function Home() {
                                                     <MapPin className="w-3 h-3" /> {spot.address}
                                                 </p>
                                             </div>
-                                            <span className="bg-teal-50 text-teal-700 text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0">
-                                                KSh {spot.hourlyRate}/hr
-                                            </span>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <span className="bg-teal-50 text-teal-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                                                    KSh {spot.hourlyRate}/hr
+                                                </span>
+                                                <button
+                                                    onClick={() => handleFavoriteToggle(spot.id)}
+                                                    disabled={isFavoriteBusy}
+                                                    className={`w-9 h-9 rounded-lg border flex items-center justify-center transition ${isFavorite ? 'bg-rose-50 border-rose-100 text-rose-500' : 'bg-white border-gray-200 text-gray-400 hover:text-rose-500 hover:border-rose-100'} ${isFavoriteBusy ? 'opacity-60' : ''}`}
+                                                    aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                                                >
+                                                    {isFavoriteBusy ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 stroke-rose-500' : ''}`} />
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="flex items-center justify-between mt-3">
                                             <div className="flex items-center gap-3 text-xs flex-wrap">

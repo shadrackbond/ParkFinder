@@ -757,7 +757,7 @@ export default function Home() {
                                 return (
                                     <div key={spot.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                                         {images.length === 0 && (
-                                            <div className="h-28 bg-gray-50 flex items-center justify-center">
+                                            <div className="h-48 bg-gray-50 flex items-center justify-center">
                                                 <ParkingCircle className="w-10 h-10 text-gray-300" />
                                             </div>
                                         )}

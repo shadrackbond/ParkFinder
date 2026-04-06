@@ -76,6 +76,13 @@ export default function ProviderNav() {
                             </button>
                         );
                     })}
+                    <button
+                        onClick={handleLogout}
+                        className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg transition min-w-[56px] text-red-400"
+                    >
+                        <LogOut className="w-5 h-5" />
+                        <span className="text-[10px] font-semibold">Exit</span>
+                    </button>
                 </div>
             </div>
         </>

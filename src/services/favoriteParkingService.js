@@ -1,10 +1,24 @@
+/**
+ * favoriteParkingService.js — Firestore Favorite Parking Lots
+ *
+ * Manages a customer's saved favorite parking lots.
+ * Favorites are stored as an array field on the user's profile document.
+ *
+ * Firestore Collection: "users"
+ * Document field:
+ *   {
+ *     favoriteLotIds: string[],  // Array of parking lot IDs the user has favorited
+ *     updatedAt: Timestamp,
+ *   }
+ */
+
 import {
     arrayRemove,
     arrayUnion,
     doc,
     onSnapshot,
     serverTimestamp,
-    setDoc,
+    updateDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -34,12 +48,11 @@ export function subscribeFavoriteLotIds(userId, onData, onError) {
 export async function toggleFavoriteLot(userId, lotId, shouldFavorite) {
     if (!userId || !lotId) return;
 
-    await setDoc(
+    await updateDoc(
         getUserRef(userId),
         {
             favoriteLotIds: shouldFavorite ? arrayUnion(lotId) : arrayRemove(lotId),
             updatedAt: serverTimestamp(),
-        },
-        { merge: true }
+        }
     );
 }

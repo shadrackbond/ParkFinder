@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, MapPin, Heart, Clock, Navigation, Star, ParkingCircle, X, Search, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from '../components/common/BottomNav';
@@ -244,10 +244,14 @@ export default function Home() {
     }, [search]);
 
     const baseLots = filteredLots !== null ? filteredLots : lots;
-    const recentLots = recentLotIds
-    const favoriteLots = favoriteLotIds
-        .map((id) => baseLots.find((lot) => lot.id === id))
-        .filter(Boolean);
+    const recentLots = useMemo(() => {
+        const lotMap = new Map(lots.map((l) => [l.id, l]));
+        return recentLotIds.map((id) => lotMap.get(id)).filter(Boolean);
+    }, [lots, recentLotIds]);
+    const favoriteLots = useMemo(() => {
+        const lotMap = new Map(lots.map((l) => [l.id, l]));
+        return favoriteLotIds.map((id) => lotMap.get(id)).filter(Boolean);
+    }, [lots, favoriteLotIds]);
     const displayLots = quickAction === 'nearby'
         ? nearbyLots
         : quickAction === 'recent'

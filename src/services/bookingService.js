@@ -22,6 +22,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { releaseSpot } from './spotService';
+import { recomputeLotAvailability } from './parkingService';
+import { notifyBookingCancelled, notifyHistoryCleared } from '../../notifications/notifications';
 
 /**
  * Create a new booking document with status "reserving".
@@ -90,6 +92,12 @@ export async function cancelBooking(bookingId) {
         status: 'cancelled',
         updatedAt: serverTimestamp(),
     });
+
+    if (booking.lotId) {
+        await recomputeLotAvailability(booking.lotId);
+    }
+
+    notifyBookingCancelled({ id: bookingId, ...booking });
 }
 
 /**
@@ -142,6 +150,7 @@ export async function clearUserHistory(userId) {
 
         if (count > 0) {
             await batch.commit();
+            notifyHistoryCleared(count);
         }
         
         return count;

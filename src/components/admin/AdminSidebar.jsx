@@ -45,21 +45,26 @@ export default function AdminSidebar() {
                 </button>
             </aside>
 
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-40"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1E1E1E] border-t border-gray-100 z-50"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -1px 8px rgba(0,0,0,0.06)' }}>
                 <div className="flex items-center justify-around px-2 py-1">
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = location.pathname === item.path;
                         return (
                             <button key={item.name} onClick={() => navigate(item.path)}
-                                className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg transition min-w-[56px] ${isActive ? 'text-indigo-600' : 'text-gray-400'
+                                className={`flex flex-col items-center gap-0.5 px-1 sm:px-3 py-2 rounded-lg transition min-w-[48px] sm:min-w-[56px] ${isActive ? 'text-indigo-600' : 'text-gray-400'
                                     }`}>
                                 <Icon className="w-5 h-5" />
                                 <span className="text-[10px] font-semibold">{item.name}</span>
                             </button>
                         );
                     })}
+                    <button onClick={handleLogout}
+                        className="flex flex-col items-center gap-0.5 px-1 sm:px-3 py-2 rounded-lg transition min-w-[48px] sm:min-w-[56px] text-red-400">
+                        <LogOut className="w-5 h-5" />
+                        <span className="text-[10px] font-semibold">Exit</span>
+                    </button>
                 </div>
             </div>
         </>

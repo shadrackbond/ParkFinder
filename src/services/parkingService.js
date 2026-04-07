@@ -39,6 +39,15 @@ import { db } from '../config/firebase';
 
 const LOTS_COLLECTION = 'parking-lots';
 
+function parseCoordinate(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+}
+
 function mapLotDoc(d) {
     const data = d.data();
     return {
@@ -46,6 +55,8 @@ function mapLotDoc(d) {
         providerId: data.providerId,
         name: data.businessName || 'Unnamed Lot',
         address: data.businessLocation || 'Nairobi',
+        latitude: parseCoordinate(data.latitude),
+        longitude: parseCoordinate(data.longitude),
         imageUrl: data.lotImages?.[0] || data.businessImage || '',
         lotImages: data.lotImages || (data.businessImage ? [data.businessImage] : []),
         hourlyRate: data.hourlyRate || 100,
@@ -217,5 +228,40 @@ export async function updateLotAvailability(providerId, availableSpots) {
     } catch (err) {
         console.error('Failed to update availability:', err);
         throw err;
+    }
+}
+
+/**
+ * Recomputes the lot's availableSpots based on live bookings.
+ * Should be called whenever a booking is confirmed, cancelled, or completed.
+ */
+export async function recomputeLotAvailability(lotId) {
+    if (!lotId) return;
+    try {
+        const ref = doc(db, LOTS_COLLECTION, lotId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+        
+        const lotData = snap.data();
+        const capacity = Number(lotData.capacity) || 0;
+        
+        const bookingsSnap = await getDocs(
+            query(collection(db, 'bookings'), where('lotId', '==', lotId))
+        );
+        
+        const activeStatuses = new Set(['reserved-pending', 'confirmed', 'checked-in']);
+        const occupiedByBookings = bookingsSnap.docs.reduce((count, bookingDoc) => {
+            const status = bookingDoc.data()?.status;
+            return activeStatuses.has(status) ? count + 1 : count;
+        }, 0);
+        
+        const nextAvailable = Math.max(capacity - occupiedByBookings, 0);
+        
+        await updateDoc(ref, {
+            availableSpots: nextAvailable,
+            updatedAt: serverTimestamp(),
+        });
+    } catch (err) {
+        console.error('Failed to recompute lot availability:', err);
     }
 }

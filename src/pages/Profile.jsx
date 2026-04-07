@@ -1,27 +1,26 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import BottomNav from '../components/common/BottomNav';
 import ProviderNav from '../components/provider/ProviderNav';
 import { updateUserProfile } from '../services/userService';
-import { LogOut, User, Mail, Shield, ChevronRight, Bell, HelpCircle, Settings, Edit3, Image, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { LogOut, User, Mail, Shield, ChevronRight, Bell, HelpCircle, Edit3, Image, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 const MAPS_KEY = import.meta.env.VITE_MAPS_JAVASCRIPT_API_KEY;
 
 function loadGoogleMapsScript() {
-    if (window.google && window.google.maps) return Promise.resolve();
-    if (window._googleMapsPromise) return window._googleMapsPromise;
+  if (window.google && window.google.maps) return Promise.resolve();
+  if (window._googleMapsPromise) return window._googleMapsPromise;
 
-    window._googleMapsPromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`;
-        script.async = true;
-        script.defer = true;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-    return window._googleMapsPromise;
+  window._googleMapsPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return window._googleMapsPromise;
 }
 
 export default function Profile() {
@@ -138,10 +137,11 @@ export default function Profile() {
       setSaving(true);
       await updateUserProfile(currentUser.uid, editData);
       setSaveSuccess(true);
+      // Update local profile display without reload
       setTimeout(() => {
         setEditing(false);
-        window.location.reload();
-      }, 1000);
+        setSaveSuccess(false);
+      }, 1500);
     } catch (err) {
       console.error('Failed to update profile:', err);
     } finally {
@@ -169,8 +169,7 @@ export default function Profile() {
 
   const menuItems = [
     { label: 'Notifications', icon: Bell },
-    { label: 'Settings', icon: Settings },
-    { label: 'Help & Support', icon: HelpCircle },
+    { label: 'Help & Support', icon: HelpCircle, onClick: () => navigate('/help') },
   ];
 
   return (
@@ -227,14 +226,21 @@ export default function Profile() {
 
           {/* Edit Profile Modal */}
           {editing && (
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl w-full max-w-md shadow-float overflow-hidden">
-                <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4 transition-opacity"
+              onClick={(e) => { if (e.target === e.currentTarget) setEditing(false); }}>
+              <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md shadow-float flex flex-col bottom-sheet-enter"
+                style={{ maxHeight: '92dvh' }}
+                onClick={(e) => e.stopPropagation()}>
+                {/* Mobile drag handle */}
+                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                  <div className="w-10 h-1 rounded-full bg-gray-200" />
+                </div>
+                <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                   <h3 className="text-lg font-bold text-gray-900">Edit Profile</h3>
                   <button onClick={() => setEditing(false)} className="text-gray-400 text-sm">Cancel</button>
                 </div>
 
-                <form onSubmit={handleSave} className="p-5 space-y-3.5 max-h-[70vh] overflow-y-auto">
+                <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 space-y-3.5">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
                     <input type="text" value={editData.displayName} onChange={(e) => setEditData({ ...editData, displayName: e.target.value })}
@@ -250,27 +256,27 @@ export default function Profile() {
                       </div>
                       <div className="relative">
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Business Location</label>
-                        <input type="text" value={editData.businessLocation} 
+                        <input type="text" value={editData.businessLocation}
                           onChange={(e) => setEditData({ ...editData, businessLocation: e.target.value })}
                           onFocus={() => setSearchActive(true)}
                           onBlur={() => setTimeout(() => setSearchActive(false), 200)}
                           className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm"
                           placeholder="Search for location..." />
-                        
+
                         {suggestions.length > 0 && searchActive && (
-                            <ul className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg z-50 overflow-hidden max-h-48 overflow-y-auto">
-                                {suggestions.map((s) => (
-                                    <li key={s.place_id}>
-                                        <button type="button"
-                                            className="w-full px-4 py-3 text-left hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
-                                            onMouseDown={() => handleSelectSuggestion(s)}
-                                        >
-                                            <p className="text-sm font-medium text-gray-800">{s.structured_formatting?.main_text}</p>
-                                            <p className="text-xs text-gray-400 mt-0.5">{s.structured_formatting?.secondary_text}</p>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
+                          <ul className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-lg z-50 overflow-hidden max-h-48 overflow-y-auto">
+                            {suggestions.map((s) => (
+                              <li key={s.place_id}>
+                                <button type="button"
+                                  className="w-full px-4 py-3 text-left hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
+                                  onMouseDown={() => handleSelectSuggestion(s)}
+                                >
+                                  <p className="text-sm font-medium text-gray-800">{s.structured_formatting?.main_text}</p>
+                                  <p className="text-xs text-gray-400 mt-0.5">{s.structured_formatting?.secondary_text}</p>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </div>
                       <div>
@@ -332,6 +338,7 @@ export default function Profile() {
                 const Icon = item.icon;
                 return (
                   <button key={item.label}
+                    onClick={item.onClick}
                     className={`w-full flex items-center gap-3 p-4 text-left hover:bg-gray-50 transition ${index !== menuItems.length - 1 ? 'border-b border-gray-50' : ''
                       }`}>
                     <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -351,9 +358,6 @@ export default function Profile() {
           </div>
         </div>
       </main>
-
-      {/* Customer gets bottom nav */}
-      {!isProvider && !isAdmin && <BottomNav />}
     </div>
   );
 }

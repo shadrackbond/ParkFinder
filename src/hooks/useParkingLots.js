@@ -36,7 +36,7 @@ export default function useParkingLots(filters = {}) {
         );
 
         return () => unsubscribe();
-    }, [filters.lat, filters.lng, filters.radius]);
+    }, [filters.lat, filters.lng, filters.radius, setLots]);
 
     return { lots, loading, error };
 }

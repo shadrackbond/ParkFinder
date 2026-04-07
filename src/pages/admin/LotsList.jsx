@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
 import { getAllLots, deleteLot, toggleLotStatus } from '../../services/adminService';
-import { Loader2, ParkingCircle, MapPin, Trash2, Building2, CheckCircle, XCircle, Wand2 } from 'lucide-react';
-import { doc, getDocs, collection, query, where, updateDoc } from 'firebase/firestore';
+import { Loader2, ParkingCircle, MapPin, Trash2, Building2, CheckCircle, XCircle, Wand2, Zap } from 'lucide-react';
+import { getDocs, collection, query, where, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
 export default function LotsList() {
@@ -11,6 +11,7 @@ export default function LotsList() {
     const [deletingId, setDeletingId] = useState(null);
     const [confirmId, setConfirmId] = useState(null);
     const [togglingId, setTogglingId] = useState(null);
+    const [activatingAll, setActivatingAll] = useState(false);
 
     useEffect(() => { loadLots(); }, []);
 
@@ -31,6 +32,27 @@ export default function LotsList() {
             console.error('Failed to delete lot:', err);
         } finally {
             setDeletingId(null);
+        }
+    }
+
+    async function handleActivateAllApproved() {
+        if (!window.confirm('Activate all lots belonging to approved providers? This will make them visible to customers.')) return;
+        setActivatingAll(true);
+        try {
+            // Get all active providers
+            const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'provider'), where('status', '==', 'active')));
+            const approvedIds = new Set(usersSnap.docs.map(d => d.id));
+            // Get inactive lots whose providerId is in approvedIds
+            const lotsSnap = await getDocs(query(collection(db, 'parking-lots'), where('isActive', '==', false)));
+            const toActivate = lotsSnap.docs.filter(d => approvedIds.has(d.id));
+            await Promise.all(toActivate.map(d => updateDoc(d.ref, { isActive: true, updatedAt: serverTimestamp() })));
+            alert(`Activated ${toActivate.length} lot(s).`);
+            loadLots();
+        } catch (err) {
+            console.error('Failed to activate lots:', err);
+            alert('Error: ' + err.message);
+        } finally {
+            setActivatingAll(false);
         }
     }
 
@@ -56,20 +78,13 @@ export default function LotsList() {
                             <h1 className="text-xl font-bold text-gray-900">Parking Lots</h1>
                             <p className="text-gray-400 text-xs mt-0.5">{lots.length} total lots</p>
                         </div>
-                        <div className="flex gap-3">
-                            <button 
-                                onClick={async () => {
-                                    const q = query(collection(db, 'parking-lots'), where('businessName', '==', 'Prism Tower Parking'));
-                                    const snap = await getDocs(q);
-                                    for (const d of snap.docs) {
-                                        await updateDoc(d.ref, { openTime: '07:00', closeTime: '21:00' });
-                                    }
-                                    alert('Prism Tower Updated to 7am-9pm!');
-                                    loadLots();
-                                }}
-                                className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-100 transition"
+                        <div className="flex flex-wrap gap-2 justify-end">
+                            <button
+                                onClick={handleActivateAllApproved}
+                                disabled={activatingAll}
+                                className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition disabled:opacity-50"
                             >
-                                <Wand2 className="w-3.5 h-3.5" /> Fix Prism Hours
+                                {activatingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />} Activate Approved
                             </button>
                             <button onClick={loadLots} className="text-indigo-600 text-xs font-semibold">Refresh</button>
                         </div>
@@ -120,11 +135,10 @@ export default function LotsList() {
                                                     </p>
                                                 </div>
                                                 {/* Status badge */}
-                                                <span className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                                    lot.isActive
+                                                <span className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${lot.isActive
                                                         ? 'bg-emerald-50 text-emerald-700'
                                                         : 'bg-gray-100 text-gray-500'
-                                                }`}>
+                                                    }`}>
                                                     {lot.isActive
                                                         ? <><CheckCircle className="w-3 h-3" /> Active</>
                                                         : <><XCircle className="w-3 h-3" /> Inactive</>
@@ -180,9 +194,8 @@ export default function LotsList() {
                                             <button
                                                 onClick={() => handleToggleActive(lot.id, lot.isActive)}
                                                 disabled={togglingId === lot.id}
-                                                className={`flex items-center gap-1.5 text-xs font-semibold transition disabled:opacity-50 ${
-                                                    lot.isActive ? 'text-amber-600 hover:text-amber-700' : 'text-emerald-600 hover:text-emerald-700'
-                                                }`}
+                                                className={`flex items-center gap-1.5 text-xs font-semibold transition disabled:opacity-50 ${lot.isActive ? 'text-amber-600 hover:text-amber-700' : 'text-emerald-600 hover:text-emerald-700'
+                                                    }`}
                                             >
                                                 {togglingId === lot.id ? (
                                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

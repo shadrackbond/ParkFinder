@@ -13,8 +13,19 @@ import {
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { reserveSpot } from '../../services/spotService';
+import { getLotById, recomputeLotAvailability } from '../../services/parkingService';
 import { cancelBooking } from '../../services/bookingService';
 import SpotPicker from './SpotPicker';
+import {
+    notifyBookingCreated,
+    notifyBookingConfirmed,
+    notifyPaymentInitiated,
+    notifyPaymentSuccess,
+    notifyPaymentFailed,
+    schedulePreCheckInNotification,
+    schedulePreCheckoutNotification,
+    notifySystemError,
+} from '../../../notifications/notifications';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -74,6 +85,16 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
         if (!isOpen) return;
         const timer = setInterval(() => setCurrentTimeData(new Date()), 60000);
         return () => clearInterval(timer);
+    }, [isOpen]);
+
+    // Lock body scroll while modal is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
 
     if (!isOpen || !lot) return null;
@@ -203,6 +224,8 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             });
             placeholderDocId = newRef.id;
 
+            notifyBookingCreated({ ...bookingData, id: placeholderDocId });
+
             // 2. Reserve the spot atomically (transaction)
             try {
                 await reserveSpot(
@@ -228,6 +251,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
             }
 
             // 3. Trigger M-Pesa STK push
+            notifyPaymentInitiated(amount);
             const response = await axios.post(
                 'https://parkfinder-hwy4.onrender.com/api/mpesa/stkpush',
                 {
@@ -243,15 +267,23 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                 // Wait for the backend webhook to mark it as confirmed or cancelled
                 const unsubscribe = onSnapshot(newRef, (docSnap) => {
                     if (docSnap.exists()) {
-                        const status = docSnap.data().status;
+                        const data = docSnap.data();
+                        const status = data.status;
                         if (status === 'confirmed') {
                             unsubscribe();
+                            const confirmedBooking = { id: docSnap.id, ...data };
+                            notifyPaymentSuccess(confirmedBooking.amount || amount);
+                            notifyBookingConfirmed(confirmedBooking);
+                            schedulePreCheckInNotification(confirmedBooking, 15);
+                            schedulePreCheckoutNotification(confirmedBooking, 10);
                             setLoading(false);
+                            recomputeLotAvailability(lot.id);
                             if (onSuccess) onSuccess();
                             onClose();
                         } else if (status === 'cancelled') {
                             unsubscribe();
                             setError('Payment failed or was cancelled by user.');
+                            notifyPaymentFailed('Payment failed or was cancelled by user.');
                             setLoading(false);
                         }
                     }
@@ -263,16 +295,17 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                     setError('Payment is taking longer than expected. Check your M-Pesa messages. If successful, it will appear in your Bookings.');
                     setLoading(false);
                 }, 45000);
-
             } else {
-                setError(response.data.message || 'M-Pesa push failed. Please try again.');
+                const msg = response.data.message || 'M-Pesa push failed. Please try again.';
+                setError(msg);
+                notifyPaymentFailed(msg);
                 if (placeholderDocId) await cancelBooking(placeholderDocId).catch(() => {});
                 setLoading(false);
             }
         } catch (err) {
-
-            setError(err.message || 'An error occurred during booking. Please try again.');
-        } finally {
+            const msg = err.message || 'An error occurred during booking. Please try again.';
+            setError(msg);
+            notifySystemError(msg);
             setLoading(false);
         }
     };
@@ -281,10 +314,18 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
 
     return (
         <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-                <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            {/* Backdrop */}
+            <div
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 transition-opacity"
+                onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            >
+                <div className="bg-white rounded-2xl w-full max-w-md flex flex-col shadow-2xl page-enter"
+                    style={{ maxHeight: '92dvh' }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+
                     {/* Header */}
-                    <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+                    <div className="flex items-center justify-between px-5 pt-3 sm:pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
                         <div>
                             <h2 className="text-xl font-bold text-gray-900">Book Parking</h2>
                             <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
@@ -300,7 +341,8 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                         </button>
                     </div>
 
-                    <div className="p-5 overflow-y-auto max-h-[70vh]">
+                    <div className="flex-1 overflow-y-auto overscroll-contain">
+                    <div className="p-5">
                         {error && (
                             <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl mb-4 border border-red-100">
                                 {error}
@@ -442,9 +484,10 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                             </div>
                         </form>
                     </div>
+                    </div>{/* end scroll container */}
 
                     {/* Footer */}
-                    <div className="p-5 border-t border-gray-100 bg-gray-50">
+                    <div className="p-5 border-t border-gray-100 bg-gray-50 flex-shrink-0">
                         <button
                             type="submit"
                             form="booking-form"
@@ -468,7 +511,7 @@ export default function BookingModal({ isOpen, onClose, lot, onSuccess }) {
                         </p>
                     </div>
                 </div>
-            </div>
+            </div>{/* end backdrop */}
 
             {/* SpotPicker overlay (renders on top of modal) */}
             {showSpotPicker && (

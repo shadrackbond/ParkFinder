@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { MapPin, Clock, QrCode, X } from 'lucide-react';
 
 /**
@@ -11,7 +12,7 @@ import { MapPin, Clock, QrCode, X } from 'lucide-react';
  *   onViewQR      — callback to show QR ticket
  *   onCancel      — callback(bookingId) to cancel the booking
  */
-export default function BookingCard({ booking, onViewQR, onCancel }) {
+export default memo(function BookingCard({ booking, onViewQR, onCancel }) {
 
     // ── Time / Date formatters (handle both plain strings and Timestamps) ──
 
@@ -40,12 +41,11 @@ export default function BookingCard({ booking, onViewQR, onCancel }) {
 
     // ── Date display ──────────────────────────────────────────────────────
 
-    // New schema uses booking.date; old schema derives from startTime
-    const dateDisplay = booking.date
+    const dateDisplay = booking?.date
         ? formatDate(booking.date)
-        : formatDate(booking.startTime);
+        : formatDate(booking?.startTime);
 
-    const timeDisplay = `${formatTime(booking.startTime)} – ${formatTime(booking.endTime)}`;
+    const timeDisplay = `${formatTime(booking?.startTime)} – ${formatTime(booking?.endTime)}`;
 
     // ── Status styles ─────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ export default function BookingCard({ booking, onViewQR, onCancel }) {
     // ── Cancel guard: only show cancel if confirmed + session not yet started ──
 
     const canCancel = (() => {
-        if (booking.status !== 'confirmed') return false;
+        if (booking?.status !== 'confirmed') return false;
         const today = new Date().toISOString().slice(0, 10);
         // New schema
         if (booking.date && booking.startTime && typeof booking.startTime === 'string') {
@@ -71,15 +71,17 @@ export default function BookingCard({ booking, onViewQR, onCancel }) {
             return currentMins < sh * 60 + sm;
         }
         // Old schema (Timestamp)
-        if (booking.startTime?.seconds) {
+        if (booking?.startTime?.seconds) {
             return new Date(booking.startTime.seconds * 1000) > new Date();
         }
         return false;
     })();
 
-    const sessionStarted = booking.status === 'confirmed' && !canCancel;
+    const sessionStarted = booking?.status === 'confirmed' && !canCancel;
 
-    const isActive = ['confirmed', 'checked-in', 'reserving'].includes(booking.status);
+    const isActive = ['confirmed', 'checked-in', 'reserving'].includes(booking?.status);
+
+    if (!booking) return null;
 
     return (
         <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-sm transition-shadow">
@@ -88,8 +90,9 @@ export default function BookingCard({ booking, onViewQR, onCancel }) {
                 <div className="relative h-28 overflow-hidden">
                     <img
                         src={booking.lotImage}
-                        alt={booking.lotName}
+                        alt={booking.lotName || 'Parking lot'}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                     <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusStyle[booking.status] || statusStyle.confirmed}`}>
@@ -101,10 +104,10 @@ export default function BookingCard({ booking, onViewQR, onCancel }) {
             <div className="p-4">
                 <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 text-sm">{booking.lotName}</h3>
+                        <h3 className="font-bold text-gray-900 text-sm">{booking.lotName || 'Unknown Lot'}</h3>
                         <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                             <MapPin className="w-3 h-3" />
-                            {booking.location || booking.lotName}
+                            {booking.location || booking.lotName || 'N/A'}
                             {booking.spotNumber != null && (
                                 <span className="ml-1 bg-indigo-50 text-indigo-600 font-semibold px-1.5 py-0.5 rounded text-[10px]">
                                     Spot #{booking.spotNumber}
@@ -169,4 +172,4 @@ export default function BookingCard({ booking, onViewQR, onCancel }) {
             </div>
         </div>
     );
-}
+});

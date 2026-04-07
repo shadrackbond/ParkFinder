@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import BottomNav from '../components/common/BottomNav';
 import BookingCard from '../components/booking/BookingCard';
 import QRTicket from '../components/booking/QRTicket';
 import useBookings from '../hooks/useBookings';
@@ -43,15 +42,19 @@ export default function Bookings() {
             // onSnapshot in useBookings updates the list reactively — no reload needed
         } catch (err) {
             console.error('[Bookings] cancelBooking error:', err);
-            setCancelError(err.message || 'Failed to cancel booking.');
+            const msg = err.message || 'Failed to cancel booking.';
+            setCancelError(msg);
+            // Auto-dismiss error message after 6 seconds
+            setTimeout(() => setCancelError(''), 6000);
         } finally {
             setCancellingId(null);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-safe page-enter">
-            {/* Header */}
+        <>
+            <div className="min-h-screen bg-gray-50 pb-safe page-enter">
+                {/* Header */}
             <div className="bg-white px-5 pt-12 pb-4 border-b border-gray-100">
                 <div className="flex items-center justify-between mb-4">
                     <div>
@@ -126,12 +129,12 @@ export default function Bookings() {
                     ))
                 )}
             </div>
+            
+            </div>
 
             {selectedBooking && (
                 <QRTicket booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
             )}
-
-            <BottomNav />
-        </div>
+        </>
     );
 }

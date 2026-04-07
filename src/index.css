@@ -2,7 +2,123 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar for horizontal cards */
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOBAL CSS CUSTOM PROPERTIES
+   AccessibilityContext writes --font-scale so all rem-based sizes scale up.
+───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --font-scale: 1;
+}
+
+html {
+  /* Scales every rem value globally without breaking px-based containers */
+  font-size: calc(16px * var(--font-scale));
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LIGHT MODE BASE  (these hex values are intentionally never changed)
+───────────────────────────────────────────────────────────────────────────── */
+body {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8FAFC;
+  color: #1E293B;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  /* Prevent iOS bounce / overscroll */
+  overscroll-behavior-y: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DARK MODE GLOBAL OVERRIDES
+───────────────────────────────────────────────────────────────────────────── */
+.dark body {
+  background-color: #121212;
+  color: #F3F4F6;
+}
+
+.dark .bg-white,
+.dark [class*="bg-white"] {
+  background-color: #1E1E1E !important;
+  color: #F3F4F6;
+}
+
+.dark .bg-gray-50,
+.dark [class*="bg-gray-50"] {
+  background-color: #1A1A1A !important;
+  color: #F3F4F6;
+}
+
+.dark .bg-gray-100,
+.dark [class*="bg-gray-100"] {
+  background-color: #252525 !important;
+  color: #F3F4F6;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: #F3F4F6 !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: #D1D5DB !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-100 {
+  border-color: #374151 !important;
+}
+
+.dark .min-h-screen {
+  background-color: #121212;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #2A2A2A;
+  color: #F3F4F6;
+  border-color: #4B5563;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #9CA3AF;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   WCAG AAA HIGH-CONTRAST MODE
+───────────────────────────────────────────────────────────────────────────── */
+body.high-contrast,
+body.high-contrast * {
+  background-color: #000000 !important;
+  color: #FFFF00 !important;
+  border-color: #FFFF00 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+body.high-contrast a,
+body.high-contrast button {
+  color: #FFFF00 !important;
+  text-decoration: underline;
+}
+
+body.high-contrast img,
+body.high-contrast svg {
+  filter: grayscale(100%) contrast(200%);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCROLLBAR
+───────────────────────────────────────────────────────────────────────────── */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -12,48 +128,32 @@
   scrollbar-width: none;
 }
 
-/* Smooth mobile experience */
+/* ─────────────────────────────────────────────────────────────────────────────
+   SMOOTH MOBILE EXPERIENCE
+───────────────────────────────────────────────────────────────────────────── */
 * {
   -webkit-tap-highlight-color: transparent;
   box-sizing: border-box;
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
-}
-
-body {
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #F8FAFC;
-  color: #1E293B;
-  /* Safe area for notched devices */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-}
-
-/* Smooth page transitions */
+/* ── GPU-accelerated page transition (prefer transform + opacity) ────────── */
 .page-enter {
   animation: fadeIn 0.25s ease-out;
+  will-change: opacity;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translate3d(0, 6px, 0);
   }
-
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
-/* Mobile touch targets — ensure minimum 44px */
+/* ── Mobile touch targets — WCAG 2.5.8 minimum 44×44px ───────────────────── */
 button,
 a,
 input,
@@ -62,9 +162,15 @@ textarea {
   min-height: 44px;
 }
 
+/* Override for tiny inline elements that shouldn't enforce 44px height */
+span.inline-badge,
+.min-h-0 {
+  min-height: 0;
+}
+
 /* Fix for mobile bottom nav overlap */
 .pb-safe {
-  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 }
 
 /* Input focus ring consistent */
@@ -72,4 +178,141 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GPU-ACCELERATED ANIMATIONS
+   Use transform + opacity only for 60fps on mobile
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes fabPop {
+  0%   { transform: scale3d(0.8, 0.8, 1); opacity: 0; }
+  70%  { transform: scale3d(1.08, 1.08, 1); }
+  100% { transform: scale3d(1, 1, 1);   opacity: 1; }
+}
+
+.fab-enter {
+  animation: fabPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes slideDown {
+  from { transform: translate3d(0, -100%, 0); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0);    opacity: 1; }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes slideUp {
+  from { transform: translate3d(0, 40px, 0); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0);    opacity: 1; }
+}
+
+@keyframes pulseSlow {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.85; }
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 3s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SAFARI / iOS FIXES
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Prevent Safari from zooming on input focus (font-size < 16px triggers zoom) */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Fix Safari 100vh (use dvh where supported) */
+@supports (min-height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* Smooth momentum scroll for iOS */
+.overflow-y-auto,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix backdrop-blur rendering on Safari */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+  .backdrop-blur-sm {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .backdrop-blur-xl {
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LOADING SPINNER (used by Suspense fallback)
+───────────────────────────────────────────────────────────────────────────── */
+.border-3 {
+  border-width: 3px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BOTTOM SHEET MOBILE MODAL ANIMATION
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Applied to the bottom-sheet inner container (rounded-t-3xl divs) */
+.bottom-sheet-enter {
+  animation: slideUpSheet 0.28s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  will-change: transform;
+}
+
+/* Backdrop fade-in for modals */
+@keyframes backdropFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.backdrop-enter {
+  animation: backdropFade 0.2s ease-out forwards;
+}
+
+/* Overscroll contain for modal scroll areas - prevents page scroll-chain */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MOBILE LAYOUT SAFETY
+   Ensures content is never accidentally hidden behind fixed navs
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Utility: apply to scrollable page-level containers that sit above a fixed bottom nav */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }

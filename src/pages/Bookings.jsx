@@ -58,7 +58,7 @@ export default function Bookings() {
                         <h1 className="text-xl font-bold text-gray-900">My Bookings</h1>
                         <p className="text-gray-400 text-xs mt-0.5">{bookings.length} total bookings</p>
                     </div>
-                    
+
                     {/* Clear History Button */}
                     <button
                         onClick={handleClearHistory}
@@ -77,11 +77,10 @@ export default function Bookings() {
                         <button
                             key={status}
                             onClick={() => setStatusFilter(status)}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-                                statusFilter === status
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${statusFilter === status
                                     ? 'bg-teal-600 text-white'
                                     : 'bg-gray-100 text-gray-500 hover:text-gray-700'
-                            }`}
+                                }`}
                         >
                             {status.charAt(0).toUpperCase() + status.slice(1)}
                         </button>

@@ -33,10 +33,10 @@ export default function History() {
       date: b.startTime?.seconds
         ? new Date(b.startTime.seconds * 1000)
         : b.startTime?.toDate
-        ? b.startTime.toDate()
-        : (b.date && typeof b.startTime === 'string'
-          ? (() => { const [y,mo,d] = b.date.split('-').map(Number); const [h,m] = b.startTime.split(':').map(Number); return new Date(y, mo-1, d, h, m); })()
-          : new Date(b.createdAt?.seconds ? b.createdAt.seconds * 1000 : Date.now())),
+          ? b.startTime.toDate()
+          : (b.date && typeof b.startTime === 'string'
+            ? (() => { const [y, mo, d] = b.date.split('-').map(Number); const [h, m] = b.startTime.split(':').map(Number); return new Date(y, mo - 1, d, h, m); })()
+            : new Date(b.createdAt?.seconds ? b.createdAt.seconds * 1000 : Date.now())),
       lotImage: b.lotImage || '',
       paymentReceipt: b.paymentReceipt || null
     }));
@@ -69,15 +69,15 @@ export default function History() {
       {/* Header */}
       <div className="bg-white px-5 pt-12 pb-5 border-b border-gray-100">
         <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-bold text-gray-900">Payment History</h1>
-            <button
-                onClick={handleClearHistory}
-                disabled={clearing || transactions.length === 0}
-                className="text-gray-400 hover:text-red-600 disabled:opacity-50 transition p-2"
-                aria-label="Clear history"
-            >
-                {clearing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-            </button>
+          <h1 className="text-xl font-bold text-gray-900">Payment History</h1>
+          <button
+            onClick={handleClearHistory}
+            disabled={clearing || transactions.length === 0}
+            className="text-gray-400 hover:text-red-600 disabled:opacity-50 transition p-2"
+            aria-label="Clear history"
+          >
+            {clearing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+          </button>
         </div>
 
         <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">

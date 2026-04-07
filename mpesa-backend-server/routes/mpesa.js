@@ -87,7 +87,7 @@ router.post('/callback', async (req, res) => {
                 const batch = db.batch();
                 snapshot.docs.forEach((docSnap) => {
                     const bookingData = docSnap.data();
-                    
+
                     // If it's an overcharge, we just mark it paid
                     if (bookingData.status === 'confirmed' || bookingData.checkedOut) {
                         batch.update(docSnap.ref, {
@@ -112,7 +112,7 @@ router.post('/callback', async (req, res) => {
                 const batch = db.batch();
                 snapshot.docs.forEach((docSnap) => {
                     const bookingData = docSnap.data();
-                    
+
                     if (bookingData.status === 'confirmed' || bookingData.checkedOut) {
                         batch.update(docSnap.ref, {
                             overchargePaymentFailed: true,

@@ -32,11 +32,10 @@ export async function getPendingProviders() {
 
 /**
  * Approve a pending provider — sets user status to 'active'.
- * Also activates the provider's parking lot so it appears in the customer feed.
+ * Does NOT activate the lot; lot must be approved separately.
  */
 export async function approveProvider(providerId) {
     await updateProviderStatus(providerId, 'active');
-    await setLotActive(providerId, true);
 }
 
 /**
